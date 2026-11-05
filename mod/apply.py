@@ -114,7 +114,7 @@ edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
 # One-tap placement below the first row, plus a saved opacity control for its glass plate.
 edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
     ('    private fun arrange() {',
-     '    /** Puts a first-row app or folder at the start of the second row in one step. */\n    fun moveOutOfFirstRow(key: String) {\n        val from = apps.indexOfFirst { it.key == key }\n        val columns = AerialSettings.homeColumns\n        if (from !in 0 until columns || apps.size <= columns) return\n        store.moveOutOfFirstRow(key, columns, AerialSettings.noFillFirstRow)\n        arrange()\n    }\n\n    private fun arrange() {',
+     '    /** Puts a first-row app or folder at the start of the second row in one step. */\n    fun moveOutOfFirstRow(key: String) {\n        val from = apps.indexOfFirst { it.key == key }\n        val columns = AerialSettings.homeColumns\n        if (from !in 0 until columns || apps.size <= columns) return\n        store.moveOutOfFirstRow(key, apps[columns].key)\n        arrange()\n    }\n\n    private fun arrange() {',
      "move out of first row"),
 ])
 
@@ -202,13 +202,13 @@ edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
 # The first-row gaps can be filled directly from any lower-row app's context menu.
 edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
     ('    fun move(key: String, target: String) {',
-     '    /** Moves a tile to the first available first-row gap, or inserts it at the row end. */\n    fun moveToFirstRow(key: String, columns: Int) {\n        if (columns <= 0) return\n        val list = order.toMutableList()\n        val from = list.indexOf(key)\n        if (from < 0 || from < columns) return\n        list.removeAt(from)\n        val gap = list.indices.firstOrNull { it < columns && list[it].startsWith(FIRST_ROW_GAP_PREFIX) }\n        if (gap != null) {\n            val hiddenKey = list[gap].removePrefix(FIRST_ROW_GAP_PREFIX)\n            list[gap] = key\n            if (hiddenKey !in list) list.add(hiddenKey)\n        } else list.add((columns - 1).coerceAtMost(list.size), key)\n        order = list\n        save()\n    }\n\n    /** Moves a first-row tile to the start of row two, retaining its old slot as a gap. */\n    fun moveOutOfFirstRow(key: String, columns: Int, preserveGap: Boolean) {\n        if (columns <= 0) return\n        val list = order.toMutableList()\n        val from = list.indexOf(key)\n        if (from !in 0 until columns) return\n        list.removeAt(from)\n        if (preserveGap) list.add(from.coerceAtMost(list.size), FIRST_ROW_GAP_PREFIX + key)\n        list.add(columns.coerceAtMost(list.size), key)\n        order = list\n        save()\n    }\n\n    fun move(key: String, target: String) {',
+     '    /** Moves a tile to the first available first-row gap, or inserts it at the row end. */\n    fun moveToFirstRow(key: String, columns: Int, preserveGaps: Boolean) {\n        if (columns <= 0) return\n        val list = order.toMutableList()\n        val from = list.indexOf(key)\n        if (from < 0 || from < columns) return\n        list.removeAt(from)\n        val gap = if (preserveGaps) list.indices.firstOrNull {\n            it < columns && (list[it].startsWith(FIRST_ROW_GAP_PREFIX) || list[it] in hidden)\n        } else null\n        if (gap != null) {\n            val oldSlot = list[gap]\n            val hiddenKey = oldSlot.removePrefix(FIRST_ROW_GAP_PREFIX)\n            list[gap] = key\n            if (hiddenKey !in list) list.add(hiddenKey)\n        } else list.add((columns - 1).coerceAtMost(list.size), key)\n        order = list\n        save()\n    }\n\n    fun move(key: String, target: String) {',
      "first-row move methods"),
 ])
 
 edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
     ('    private fun arrange() {',
-     '    /** Places a lower-row tile in the first row, filling the leftmost saved gap first. */\n    fun moveToFirstRow(key: String) {\n        store.moveToFirstRow(key, AerialSettings.homeColumns)\n        arrange()\n    }\n\n    private fun arrange() {',
+     '    /** Places a lower-row tile in the first row, filling the leftmost saved gap first. */\n    fun moveToFirstRow(key: String) {\n        store.moveToFirstRow(key, AerialSettings.homeColumns, AerialSettings.noFillFirstRow)\n        arrange()\n    }\n\n    private fun arrange() {',
      "move to first row view model"),
 ])
 
@@ -246,10 +246,10 @@ edit("app/src/main/res/values-zh/strings.xml", [
 # single focus target inside its row and must participate in the TV D-pad sequence.
 edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
     ('import androidx.compose.ui.focus.onFocusChanged\n',
-     'import androidx.compose.ui.focus.onFocusChanged\nimport androidx.compose.ui.focus.focusGroup\n',
+     'import androidx.compose.ui.focus.onFocusChanged\n',
      "settings focus group import"),
     ('            .padding(start = 18.dp, end = 10.dp)\n            .onFocusChanged { if (it.hasFocus) note(hint) },',
-     '            .padding(start = 18.dp, end = 10.dp)\n            .focusGroup()\n            .onFocusChanged { if (it.hasFocus) note(hint) },',
+     '            .padding(start = 18.dp, end = 10.dp)\n            .onFocusChanged { if (it.hasFocus) note(hint) },',
      "settings row focus group"),
 ])
 
