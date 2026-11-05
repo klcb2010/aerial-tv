@@ -134,9 +134,9 @@ jobs:
           print(r.get("name") or r.get("tag_name") or "")
           print(r.get("body") or "")
           ' <<<"$release")
-          upstream_tag="\${release_fields[0]:-}"
-          release_name="\${release_fields[1]:-}"
-          release_body="\${release_fields[2]:-}"
+          upstream_tag="${release_fields[0]:-}"
+          release_name="${release_fields[1]:-}"
+          release_body="${release_fields[2]:-}"
           test -n "$upstream_tag" || { echo "Upstream release has no tag_name"; exit 1; }
           tag="upstream-${upstream_tag}"
           # Check the GitHub Release itself, not merely whether a Git tag exists.
@@ -158,7 +158,7 @@ jobs:
           fi
 
       - name: Prepare APKs for in-app updates
-        if: \${{ steps.upstream_release.outputs.publish == 'true' }}
+        if: ${{ steps.upstream_release.outputs.publish == 'true' }}
         run: |
           set -euo pipefail
           cp app/build/outputs/apk/standard/release/app-standard-release.apk aerial-standard.apk
