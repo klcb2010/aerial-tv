@@ -126,9 +126,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Set fork release version
-        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
+        if: ${{ github.ref == 'refs/heads/main' && steps.build_gate.outputs.should_build == 'true' }}
         id: fork_version
-        if: ${{ github.ref == 'refs/heads/main' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -212,8 +211,7 @@ jobs:
           retention-days: 30
 
       - name: Prepare APKs for fork release
-        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' && steps.build_gate.outputs.should_build == 'true' }}
         run: |
           set -euo pipefail
           cp app/build/outputs/apk/standard/release/app-standard-release.apk aerial-standard.apk
