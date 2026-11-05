@@ -76,7 +76,27 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${ANDROID_HOME:-}" || { echo "ANDROID_HOME is not set"; exit 1; }
-          sdkmanager --install \
+
+          # GitHub-hosted runners install sdkmanager under cmdline-tools,
+          # but do not necessarily add it to PATH.
+          SDKMANAGER=""
+          for candidate in \
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "$ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager" \
+            "$ANDROID_HOME/tools/bin/sdkmanager"; do
+            if [ -x "$candidate" ]; then
+              SDKMANAGER="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -u+x 2>/dev/null | sort -V | tail -n 1)"
+          fi
+          test -n "$SDKMANAGER" || { echo "sdkmanager not found under $ANDROID_HOME"; exit 1; }
+
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install \
             "platform-tools" \
             "platforms;android-36" \
             "build-tools;36.0.0"
