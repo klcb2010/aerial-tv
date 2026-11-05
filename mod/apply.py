@@ -190,10 +190,26 @@ edit("app/src/main/res/values-zh/strings.xml", [
 print("[mod] all patches applied")
 
 
-# Back from a lower row behaves like the remote's Home key. Home's existing reset
-# handshake waits until the launcher window is focused before moving focus to tile zero.
+# Back from a lower row returns focus to the first tile on the Home desktop.
 edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
-    ('    BackHandler(enabled = overlay == Overlay.None && moving == null) {\n        // tvOS: Back from inside the grid returns to the top row; Back on the top row starts the\n        // screensaver. A grid scrolled by touch counts as being inside it.\n        val scrolled = dragged && scroll.value > 1f\n        dragged = false\n        // Handled even when that is turned off: unhandled, Back would close Home itself.\n        if (focusedRow > 0 || scrolled) focusApp(focusedIndex.coerceAtLeast(0) % columns)\n        else if (AerialSettings.backStartsScreensaver) onStartScreensaver()\n    }',
-     '    BackHandler(enabled = overlay == Overlay.None && moving == null) {\n        // Back from any lower row returns to the Home desktop's first tile,\n        // matching the Home key's reset destination without leaving the launcher.\n        val scrolled = dragged && scroll.value > 1f\n        dragged = false\n        if (focusedRow > 0 || scrolled) focusApp(0)\n        else if (AerialSettings.backStartsScreensaver) onStartScreensaver()\n    }',
+    ("""    BackHandler(enabled = overlay == Overlay.None && moving == null) {
+        // tvOS: Back from inside the grid returns to the top row; Back on the top row starts the
+        // screensaver. A grid scrolled by touch counts as being inside it.
+        val scrolled = dragged && scroll.value > 1f
+        dragged = false
+        // Handled even when that is turned off: unhandled, Back would close Home itself.
+        if (focusedRow > 0 || scrolled) focusApp(focusedIndex.coerceAtLeast(0) % columns)
+        else if (AerialSettings.backStartsScreensaver) onStartScreensaver()
+    }""",
+     """    BackHandler(enabled = overlay == Overlay.None && moving == null) {
+        // Back from any lower row returns to the Home desktop's first tile,
+        // matching the Home key's reset destination without leaving the launcher.
+        val scrolled = dragged && scroll.value > 1f
+        dragged = false
+        if (focusedRow > 0 || scrolled) focusApp(0)
+        else if (AerialSettings.backStartsScreensaver) onStartScreensaver()
+    }""",
      "back behaves like Home from lower rows"),
 ])
+
+print("[mod] all patches applied")
