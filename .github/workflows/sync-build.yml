@@ -27,10 +27,12 @@ jobs:
           ref: ${{ github.ref_name }}
 
       - name: Sync upstream source (protected local files are retained)
+        id: sync_upstream
         if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'schedule' }}
         shell: bash
         run: |
           set -euo pipefail
+          echo "changed=false" >> "$GITHUB_OUTPUT"
           git remote add upstream https://github.com/pengchujin/aerial-tv.git
           git fetch --depth=1 upstream main
           mkdir -p /tmp/aerial-upstream
@@ -51,14 +53,29 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git commit -m "Sync upstream pengchujin/aerial-tv"
             git push origin "HEAD:${GITHUB_REF_NAME}"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "Upstream source is already synchronized."
           fi
 
+      - name: Decide whether a build is needed
+        id: build_gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          should_build=true
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${{ steps.sync_upstream.outputs.changed }}" != "true" ]]; then
+            should_build=false
+            echo "No upstream changes detected; skip build and release."
+          fi
+          echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
+
       - name: Apply protected mod injection
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         run: python3 mod/apply.py
 
       - name: Verify patch and whitespace
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         run: |
           set -euo pipefail
           git diff --check
@@ -67,12 +84,14 @@ jobs:
           grep -q 'hidden_slots' app/src/main/java/app/orchard/tv/settings/AerialSettings.kt
 
       - name: Set up JDK 17
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Install Android SDK packages
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -103,9 +122,11 @@ jobs:
             "build-tools;36.0.0"
 
       - name: Set up Gradle
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         uses: gradle/actions/setup-gradle@v4
 
       - name: Set fork release version
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         id: fork_version
         if: ${{ github.ref == 'refs/heads/main' }}
         shell: bash
@@ -118,6 +139,7 @@ jobs:
           echo "Building fork release $version (versionCode $code)"
 
       - name: Restore fixed APK signing key
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         shell: bash
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.AERIAL_SIGNING_KEYSTORE_BASE64 }}
@@ -144,6 +166,7 @@ jobs:
           echo "Fixed signing key restored successfully."
 
       - name: Build Standard and Guard APKs
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         run: |
           ./gradlew --no-daemon \
             -PaerialVersionName="${{ steps.fork_version.outputs.name || '1.85' }}" \
@@ -151,6 +174,7 @@ jobs:
             assembleStandardRelease assembleGuardRelease
 
       - name: Verify APK signatures
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         shell: bash
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.AERIAL_SIGNING_STORE_PASSWORD }}
@@ -177,6 +201,7 @@ jobs:
           done
 
       - name: Upload APK artifacts
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: aerial-tv-${{ github.ref_name }}-${{ github.run_number }}
@@ -187,6 +212,7 @@ jobs:
           retention-days: 30
 
       - name: Prepare APKs for fork release
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           set -euo pipefail
@@ -194,6 +220,7 @@ jobs:
           cp app/build/outputs/apk/guard/release/app-guard-release.apk aerial-guard.apk
 
       - name: Publish fork release
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: softprops/action-gh-release@v2
         with:
@@ -211,6 +238,7 @@ jobs:
           make_latest: true
 
       - name: Publish in-app update version
+        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         if: ${{ github.ref == 'refs/heads/main' }}
         shell: bash
         run: |
