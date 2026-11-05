@@ -218,8 +218,7 @@ jobs:
           cp app/build/outputs/apk/guard/release/app-guard-release.apk aerial-guard.apk
 
       - name: Publish fork release
-        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' && steps.build_gate.outputs.should_build == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.fork_version.outputs.name }}
@@ -236,8 +235,7 @@ jobs:
           make_latest: true
 
       - name: Publish in-app update version
-        if: ${{ steps.build_gate.outputs.should_build == 'true' }}
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' && steps.build_gate.outputs.should_build == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
