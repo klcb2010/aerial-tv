@@ -139,13 +139,11 @@ jobs:
           release_body="$(printf %s "${release_fields[2]:-}" | base64 -d)"
           test -n "$upstream_tag" || { echo "Upstream release has no tag_name"; exit 1; }
           tag="upstream-${upstream_tag}"
-          # Check the GitHub Release itself, not merely whether a Git tag exists.
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-            echo "name=${release_name}" >> "$GITHUB_OUTPUT"
+          # Always refresh this release's APKs after a successful main build.
+          # This also backfills the stable asset names required by in-app updates.
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "name=${release_name}" >> "$GITHUB_OUTPUT"
             {
               echo "body<<AERIAL_RELEASE_BODY"
               echo "同步自上游 pengchujin/aerial-tv ${upstream_tag}。"
@@ -175,4 +173,5 @@ jobs:
           files: |
             aerial-standard.apk
             aerial-guard.apk
+          overwrite_files: true
           make_latest: true
