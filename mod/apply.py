@@ -191,6 +191,10 @@ edit("app/src/main/res/values-zh/strings.xml", [
 ])
 
 
+edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+    ('import androidx.compose.foundation.Canvas\\n', 'import androidx.compose.foundation.Canvas\\nimport androidx.compose.foundation.border\\n', "empty slot focus border import"),
+])
+
 # Empty first-row slots remain real D-pad focus targets. This keeps the grid,
 # status pill and Back navigation reachable even when every top-row app is hidden.
 edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
