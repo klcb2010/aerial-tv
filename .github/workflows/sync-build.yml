@@ -128,15 +128,15 @@ jobs:
           # Parse with Python's standard JSON library instead of relying on jq.
           release="$(gh api repos/pengchujin/aerial-tv/releases/latest)"
           mapfile -t release_fields < <(python3 -c '
-          import json, sys
+          import base64, json, sys
           r = json.load(sys.stdin)
           print(r.get("tag_name") or "")
           print(r.get("name") or r.get("tag_name") or "")
-          print(r.get("body") or "")
+          print(base64.b64encode((r.get("body") or "").encode()).decode())
           ' <<<"$release")
           upstream_tag="${release_fields[0]:-}"
           release_name="${release_fields[1]:-}"
-          release_body="${release_fields[2]:-}"
+          release_body="$(printf %s "${release_fields[2]:-}" | base64 -d)"
           test -n "$upstream_tag" || { echo "Upstream release has no tag_name"; exit 1; }
           tag="upstream-${upstream_tag}"
           # Check the GitHub Release itself, not merely whether a Git tag exists.
