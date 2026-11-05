@@ -375,3 +375,27 @@ edit("app/src/main/res/values-zh/strings.xml", [
      '    <string name="st_check_updates_action">检查更新</string>\n    <string name="st_check_updates_checking">正在检查…</string>\n    <string name="st_check_updates_latest">已经是最新版本</string>\n    <string name="st_check_updates_available">发现新版本</string>\n    <string name="st_check_updates_failed">检查失败，点击重试</string>',
      "Chinese manual update status strings"),
 ])
+
+
+# Use this fork's own monotonically increasing release version for every CI build.
+edit("app/build.gradle.kts", [
+    ('        versionCode = 116',
+     '        versionCode = providers.gradleProperty("aerialVersionCode").orNull?.toInt() ?: 116',
+     "fork release version code"),
+    ('        versionName = "1.85"',
+     '        versionName = providers.gradleProperty("aerialVersionName").orNull ?: "1.85"',
+     "fork release version name"),
+])
+
+# All in-app update metadata and APKs must come from klcb2010/aerial-tv, never upstream.
+edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
+    ('    private const val VERSION_URL = "https://aerial.qust.me/download/version.txt"',
+     '    private const val VERSION_URL = "https://raw.githubusercontent.com/klcb2010/aerial-tv/main/version.txt"',
+     "fork update version endpoint"),
+    ('    private const val NOTES_URL = "https://aerial.qust.me/download/notes.json"',
+     '    private const val NOTES_URL = "https://raw.githubusercontent.com/klcb2010/aerial-tv/main/release-notes.json"',
+     "fork release notes endpoint"),
+    ('        val sources = listOf(\n            "https://aerial.qust.me/download/$name",\n            "https://github.com/pengchujin/aerial-tv/releases/latest/download/$name",\n        )',
+     '        val sources = listOf(\n            "https://github.com/klcb2010/aerial-tv/releases/latest/download/$name",\n        )',
+     "fork-only APK download source"),
+])
