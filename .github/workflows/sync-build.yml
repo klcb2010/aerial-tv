@@ -162,9 +162,7 @@ jobs:
           expected="$(keytool -list -v -keystore local/signing.keystore -alias "$SIGNING_KEY_ALIAS" -storepass "$SIGNING_STORE_PASSWORD" 2>/dev/null | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
           test -n "$expected" || { echo "Could not read signing certificate fingerprint."; exit 1; }
 
-          for apk in \\
-            app/build/outputs/apk/standard/release/app-standard-release.apk \\
-            app/build/outputs/apk/guard/release/app-guard-release.apk; do
+          for apk in "app/build/outputs/apk/standard/release/app-standard-release.apk" "app/build/outputs/apk/guard/release/app-guard-release.apk"; do
             test -s "$apk" || { echo "APK not found: $apk"; exit 1; }
             actual="$("$APKSIGNER" verify --print-certs "$apk" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print tolower($2); exit}')"
             test -n "$actual" || { echo "No signer certificate found in $apk"; exit 1; }
