@@ -28,6 +28,14 @@ edit("app/src/main/java/app/orchard/tv/apps/Apps.kt", [
      "AppEntry emptySlot field"),
 ])
 
+# LayoutStore is shared with Aerial Lite. Give Lite's separate AppEntry the small
+# copy-compatible surface used by the shared layout code, without changing Lite's UI.
+edit("lite/src/main/java/app/orchard/tv/lite/Apps.kt", [
+    ('    val folder: Folder? = null,\n) {',
+     '    val folder: Folder? = null,\n    val emptySlot: Boolean = false,\n) {\n    val packageName: String get() = key\n\n    fun copy(\n        packageName: String = this.packageName,\n        label: String = this.label,\n        emptySlot: Boolean = this.emptySlot,\n    ) = AppEntry(packageName, label, component, leanback, removable, tile, placeholder, folder, emptySlot)',
+     "Lite AppEntry compatibility"),
+])
+
 edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
     ('class Arrangement(val home: List<AppEntry>, val folders: Map<String, List<AppEntry>>, val hidden: List<AppEntry>)',
      'class Arrangement(\n    val home: List<AppEntry>,\n    val folders: Map<String, List<AppEntry>>,\n    val hidden: List<AppEntry>,\n    /** Home order with optional empty slots retained in the first row. */\n    val homeSlots: List<AppEntry> = home,\n)',
