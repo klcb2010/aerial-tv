@@ -116,12 +116,63 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "Building fork release $version (versionCode $code)"
 
+      - name: Restore fixed APK signing key
+        shell: bash
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.AERIAL_SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.AERIAL_SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.AERIAL_SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.AERIAL_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$SIGNING_KEYSTORE_BASE64" || { echo "Missing GitHub Secret: AERIAL_SIGNING_KEYSTORE_BASE64"; exit 1; }
+          test -n "$SIGNING_STORE_PASSWORD" || { echo "Missing GitHub Secret: AERIAL_SIGNING_STORE_PASSWORD"; exit 1; }
+          test -n "$SIGNING_KEY_ALIAS" || { echo "Missing GitHub Secret: AERIAL_SIGNING_KEY_ALIAS"; exit 1; }
+          test -n "$SIGNING_KEY_PASSWORD" || { echo "Missing GitHub Secret: AERIAL_SIGNING_KEY_PASSWORD"; exit 1; }
+
+          mkdir -p local
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > local/signing.keystore
+          test -s local/signing.keystore
+          cat > local/signing.properties <<EOF
+          storeFile=signing.keystore
+          storePassword=$SIGNING_STORE_PASSWORD
+          keyAlias=$SIGNING_KEY_ALIAS
+          keyPassword=$SIGNING_KEY_PASSWORD
+          EOF
+
+          echo "Fixed signing key restored successfully."
+
       - name: Build Standard and Guard APKs
         run: |
           ./gradlew --no-daemon \
             -PaerialVersionName="${{ steps.fork_version.outputs.name || '1.85' }}" \
             -PaerialVersionCode="${{ steps.fork_version.outputs.code || '116' }}" \
             assembleStandardRelease assembleGuardRelease
+
+      - name: Verify APK signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          test -x "$APKSIGNER" || { echo "apksigner not found: $APKSIGNER"; exit 1; }
+
+          expected="$(keytool -list -v -keystore local/signing.keystore -alias "${{ secrets.AERIAL_SIGNING_KEY_ALIAS }}" -storepass "${{ secrets.AERIAL_SIGNING_STORE_PASSWORD }}" 2>/dev/null | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
+          test -n "$expected" || { echo "Could not read signing certificate fingerprint."; exit 1; }
+
+          for apk in \\
+            app/build/outputs/apk/standard/release/app-standard-release.apk \\
+            app/build/outputs/apk/guard/release/app-guard-release.apk; do
+            test -s "$apk" || { echo "APK not found: $apk"; exit 1; }
+            actual="$("$APKSIGNER" verify --print-certs "$apk" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print tolower($2); exit}')"
+            test -n "$actual" || { echo "No signer certificate found in $apk"; exit 1; }
+            test "$actual" = "$expected" || {
+              echo "Signing certificate mismatch: $apk"
+              echo "Expected: $expected"
+              echo "Actual:   $actual"
+              exit 1
+            }
+            echo "Verified fixed signature: $apk"
+          done
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
