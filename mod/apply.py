@@ -110,8 +110,8 @@ edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
 
 # One-tap placement below the first row, plus a saved opacity control for its glass plate.
 edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
-    ('    fun hide(key: String) {\n        store.hide(key)\n        arrange()\n    }',
-     '    fun hide(key: String) {\n        store.hide(key)\n        arrange()\n    }\n\n    /** Puts a first-row app or folder at the start of the second row in one step. */\n    fun moveOutOfFirstRow(key: String) {\n        val from = apps.indexOfFirst { it.key == key }\n        val columns = AerialSettings.homeColumns\n        if (from !in 0 until columns || apps.size <= columns) return\n        store.move(key, apps[columns].key)\n        arrange()\n    }',
+    ('    private fun arrange() {',
+     '    /** Puts a first-row app or folder at the start of the second row in one step. */\n    fun moveOutOfFirstRow(key: String) {\n        val from = apps.indexOfFirst { it.key == key }\n        val columns = AerialSettings.homeColumns\n        if (from !in 0 until columns || apps.size <= columns) return\n        store.move(key, apps[columns].key)\n        arrange()\n    }\n\n    private fun arrange() {',
      "move out of first row"),
 ])
 
@@ -188,3 +188,12 @@ edit("app/src/main/res/values-zh/strings.xml", [
 ])
 
 print("[mod] all patches applied")
+
+
+# Back from a lower row behaves like the remote's Home key. Home's existing reset
+# handshake waits until the launcher window is focused before moving focus to tile zero.
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+    ('    BackHandler(enabled = overlay == Overlay.None && moving == null) {\n        // tvOS: Back from inside the grid returns to the top row; Back on the top row starts the\n        // screensaver. A grid scrolled by touch counts as being inside it.\n        val scrolled = dragged && scroll.value > 1f\n        dragged = false\n        // Handled even when that is turned off: unhandled, Back would close Home itself.\n        if (focusedRow > 0 || scrolled) focusApp(focusedIndex.coerceAtLeast(0) % columns)\n        else if (AerialSettings.backStartsScreensaver) onStartScreensaver()\n    }',
+     '    BackHandler(enabled = overlay == Overlay.None && moving == null) {\n        // Back from any lower row returns to Android Home, like the remote\'s Home key.\n        // The existing reset handshake restores focus to the first tile when this window\n        // becomes active again (or immediately if Aerial is already the Home launcher).\n        val scrolled = dragged && scroll.value > 1f\n        dragged = false\n        if (focusedRow > 0 || scrolled) {\n            vm.homeResetPending = true\n            appContext.startActivity(\n                Intent(Intent.ACTION_MAIN)\n                    .addCategory(Intent.CATEGORY_HOME)\n                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),\n            )\n        } else if (AerialSettings.backStartsScreensaver) onStartScreensaver()\n    }',
+     "back behaves like Home from lower rows"),
+])
