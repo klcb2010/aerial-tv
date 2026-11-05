@@ -75,8 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          : "${ANDROID_HOME:?`ANDROID_HOME is not set on the GitHub runner`}"
-          yes | sdkmanager --licenses
+          test -n "${ANDROID_HOME:-}" || { echo "ANDROID_HOME is not set"; exit 1; }
           sdkmanager --install \
             "platform-tools" \
             "platforms;android-36" \
