@@ -388,14 +388,4 @@ edit("app/build.gradle.kts", [
 ])
 
 # All in-app update metadata and APKs must come from klcb2010/aerial-tv, never upstream.
-edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
-    ('    private const val VERSION_URL = "https://aerial.qust.me/download/version.txt"',
-     '    private const val VERSION_URL = "https://raw.githubusercontent.com/klcb2010/aerial-tv/main/version.txt"',
-     "fork update version endpoint"),
-    ('    private const val NOTES_URL = "https://aerial.qust.me/download/notes.json"',
-     '    private const val NOTES_URL = "https://raw.githubusercontent.com/klcb2010/aerial-tv/main/release-notes.json"',
-     "fork release notes endpoint"),
-    ('        val sources = listOf(\n            "https://aerial.qust.me/download/$name",\n            "https://github.com/pengchujin/aerial-tv/releases/latest/download/$name",\n        )',
-     '        val sources = listOf(\n            "https://github.com/klcb2010/aerial-tv/releases/latest/download/$name",\n        )',
-     "fork-only APK download source"),
-])
+# Update endpoints and APK sources are handled by the initial Updates.kt patch above.\n
