@@ -496,3 +496,45 @@ edit("app/src/main/res/values-zh/strings.xml", [
      '    <string name="st_check_updates_available">发现新版本</string>\n    <string name="update_prompt_title">发现新版本</string>\n    <string name="update_prompt_version">Aerial %1$s 已经可以更新。</string>\n    <string name="update_prompt_message">现在打开更新页面吗？</string>\n    <string name="update_prompt_now">立即更新</string>\n    <string name="update_prompt_later">稍后</string>',
      "Chinese automatic update prompt strings"),
 ])
+
+
+# Prefer the fork's lightweight version.txt endpoint; fall back to the Releases API.
+# This avoids making manual checks depend on GitHub API rate limits or API reachability.
+edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
+    ('    private fun readLatestVersion(): String {\\n        val tag = JSONObject(read(VERSION_URL)).getString("tag_name")\\n        return tag.removePrefix("upstream-").removePrefix("v")\\n    }',
+     '    private fun readLatestVersion(): String {\\n        val version = runCatching {\\n            read("https://raw.githubusercontent.com/klcb2010/aerial-tv/main/version.txt").trim()\\n        }.getOrNull()?.takeIf { it.matches(Regex("\\\\d+(\\\\.\\\\d+)*")) }\\n        if (version != null) return version\\n        val tag = JSONObject(read(VERSION_URL)).getString("tag_name")\\n        return tag.removePrefix("upstream-").removePrefix("v")\\n    }',
+     "raw version file with releases API fallback"),
+    ('        c.readTimeout = 10_000\\n        return try {',
+     '        c.readTimeout = 10_000\\n        c.setRequestProperty("User-Agent", "Aerial-TV-klcb2010")\\n        c.setRequestProperty("Accept", "application/vnd.github+json, text/plain, */*")\\n        return try {\\n            if (c.responseCode !in 200..299) throw java.io.IOException("HTTP ${c.responseCode}")',
+     "version endpoint HTTP headers and status validation"),
+])
+
+edit("app/src/main/java/app/orchard/tv/update/UpdateCheck.kt", [
+    ('    private var checking = false',
+     '    private var checking = false\\n    private var manualRequested = false',
+     "remember manual check during an existing request"),
+    ('        if (checking) {\\n            record("$source skipped: in flight")',
+     '        if (checking) {\\n            if (source == "manual") manualRequested = true\\n            record("$source skipped: in flight")',
+     "manual check joins in-flight request"),
+    ('                checking = false\\n                scheduleRetry()',
+     '                checking = false\\n                if (manualRequested) {\\n                    manualRequested = false\\n                    manualResult(result.startsWith("success"))\\n                }\\n                scheduleRetry()',
+     "complete queued manual check result"),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    ('<string name="st_check_updates">软件更新</string>',
+     '<string name="st_check_updates">手动检查更新</string>',
+     "rename manual update check setting"),
+    ('<string name="st_check_updates_hint">立即检查是否有新版 Aerial，不必等待自动检测。</string>',
+     '<string name="st_check_updates_hint">立即手动检查是否有新版 Aerial。</string>',
+     "clarify manual update check setting"),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    ('<string name="st_check_updates">Updates</string>',
+     '<string name="st_check_updates">Manual update check</string>',
+     "rename manual update check setting"),
+    ('<string name="st_check_updates_hint">Check now for a newer Aerial version instead of waiting for the automatic check.</string>',
+     '<string name="st_check_updates_hint">Manually check whether a newer Aerial version is available.</string>',
+     "clarify manual update check setting"),
+])
