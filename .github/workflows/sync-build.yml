@@ -66,11 +66,11 @@ jobs:
             --exclude='/mod/' \
             --exclude='/version.txt' \
             --exclude='/.github/workflows/' \
-            --exclude='/\.github/upstream-release.txt' \
+            --exclude='/.github/upstream-release.txt' \
             /tmp/aerial-upstream/ ./
 
           mkdir -p .github
-          printf '%s\\n' "$UPSTREAM_RELEASE_TAG" > .github/upstream-release.txt
+          printf '%s\n' "$UPSTREAM_RELEASE_TAG" > .github/upstream-release.txt
           git add -A
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
