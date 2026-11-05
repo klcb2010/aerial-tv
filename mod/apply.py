@@ -190,6 +190,69 @@ edit("app/src/main/res/values-zh/strings.xml", [
      "Chinese plate opacity setting strings"),
 ])
 
+
+# Empty first-row slots remain real D-pad focus targets. This keeps the grid,
+# status pill and Back navigation reachable even when every top-row app is hidden.
+edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+    ('    if (app.emptySlot) {\n        Spacer(modifier.requiredSize(width, height))\n        return\n    }',
+     '    if (app.emptySlot) {\n        Box(\n            modifier.requiredSize(width, height)\n                .focusRequester(focusRequester)\n                .onFocusChanged { if (it.isFocused) onFocused() }\n                .focusable(enabled),\n        )\n        return\n    }',
+     "focusable empty first-row slot"),
+])
+
+# The first-row gaps can be filled directly from any lower-row app's context menu.
+edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
+    ('    fun move(key: String, target: String) {',
+     '    /** Moves a tile to the first available first-row gap, or inserts it at the row end. */\n    fun moveToFirstRow(key: String, columns: Int) {\n        if (columns <= 0) return\n        val list = order.toMutableList()\n        val from = list.indexOf(key)\n        if (from < 0 || from < columns) return\n        list.removeAt(from)\n        val gap = list.indices.firstOrNull { it < columns && list[it].startsWith(FIRST_ROW_GAP_PREFIX) }\n        if (gap != null) list[gap] = key\n        else list.add(columns.coerceAtMost(list.size), key)\n        order = list\n        save()\n    }\n\n    /** Moves a first-row tile to the start of row two, retaining its old slot as a gap. */\n    fun moveOutOfFirstRow(key: String, target: String) {\n        val list = order.toMutableList()\n        val from = list.indexOf(key)\n        if (from !in 0 until AerialSettings.homeColumns || target !in list) return\n        list.removeAt(from)\n        val destination = list.indexOf(target)\n        if (destination < 0) return\n        list.add(destination, key)\n        list.add(from.coerceAtMost(list.size), FIRST_ROW_GAP_PREFIX + key)\n        order = list\n        save()\n    }\n\n    fun move(key: String, target: String) {',
+     "first-row move methods"),
+])
+
+edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
+    ('    private fun arrange() {',
+     '    /** Places a lower-row tile in the first row, filling the leftmost saved gap first. */\n    fun moveToFirstRow(key: String) {\n        store.moveToFirstRow(key, AerialSettings.homeColumns)\n        arrange()\n    }\n\n    private fun arrange() {',
+     "move to first row view model"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/Overlays.kt", [
+    ('    canMoveOutOfFirstRow: Boolean,\n    onMoveOutOfFirstRow: (String) -> Unit,',
+     '    canMoveOutOfFirstRow: Boolean,\n    onMoveOutOfFirstRow: (String) -> Unit,\n    canMoveToFirstRow: Boolean,\n    onMoveToFirstRow: (String) -> Unit,',
+     "AppMenu move-to-first-row parameters"),
+    ('                            if (canMoveOutOfFirstRow) MenuRow(Glyph.Move, stringResource(R.string.menu_move_out_first_row), { onMoveOutOfFirstRow(shownApp.key) })',
+     '                            if (canMoveOutOfFirstRow) MenuRow(Glyph.Move, stringResource(R.string.menu_move_out_first_row), { onMoveOutOfFirstRow(shownApp.key) })\n                            if (canMoveToFirstRow) MenuRow(Glyph.Move, stringResource(R.string.menu_move_to_first_row), { onMoveToFirstRow(shownApp.key) })',
+     "folder move-to-first-row action"),
+    ('                            if (!inFolder && canMoveOutOfFirstRow) MenuRow(Glyph.Move, stringResource(R.string.menu_move_out_first_row), { onMoveOutOfFirstRow(shownApp.key) })',
+     '                            if (!inFolder && canMoveOutOfFirstRow) MenuRow(Glyph.Move, stringResource(R.string.menu_move_out_first_row), { onMoveOutOfFirstRow(shownApp.key) })\n                            if (!inFolder && canMoveToFirstRow) MenuRow(Glyph.Move, stringResource(R.string.menu_move_to_first_row), { onMoveToFirstRow(shownApp.key) })',
+     "app move-to-first-row action"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+    ('            canMoveOutOfFirstRow = menu?.let { m ->\n                vm.apps.indexOfFirst { it.key == m.key } in 0 until columns && vm.apps.size > columns\n            } == true,',
+     '            canMoveOutOfFirstRow = menu?.let { m ->\n                vm.apps.indexOfFirst { it.key == m.key } in 0 until columns && vm.apps.size > columns\n            } == true,\n            canMoveToFirstRow = menu?.let { m ->\n                vm.apps.indexOfFirst { it.key == m.key } >= columns\n            } == true,\n            onMoveToFirstRow = { key ->\n                focusAfterOverlay = key\n                closeMenu()\n                vm.moveToFirstRow(key)\n            },',
+     "first-row menu callback"),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    ('    <string name="menu_move_out_first_row">Move out of first row</string>',
+     '    <string name="menu_move_out_first_row">Move out of first row</string>\n    <string name="menu_move_to_first_row">Move to first row</string>',
+     "English move-to-first-row label"),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    ('    <string name="menu_move_out_first_row">移出第一行</string>',
+     '    <string name="menu_move_out_first_row">移出第一行</string>\n    <string name="menu_move_to_first_row">移动到第一行</string>',
+     "Chinese move-to-first-row label"),
+])
+
+# Keep setting controls in a deterministic focus group; the opacity control is a
+# single focus target inside its row and must participate in the TV D-pad sequence.
+edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
+    ('import androidx.compose.ui.focus.onFocusChanged\n',
+     'import androidx.compose.ui.focus.onFocusChanged\nimport androidx.compose.ui.focus.focusGroup\n',
+     "settings focus group import"),
+    ('            .padding(start = 18.dp, end = 10.dp)\n            .onFocusChanged { if (it.hasFocus) note(hint) },',
+     '            .padding(start = 18.dp, end = 10.dp)\n            .focusGroup()\n            .onFocusChanged { if (it.hasFocus) note(hint) },',
+     "settings row focus group"),
+])
+
 print("[mod] all patches applied")
 
 
