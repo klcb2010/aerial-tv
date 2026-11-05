@@ -16,6 +16,7 @@ import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.AppNames
 import app.orchard.tv.apps.LayoutOps
 import app.orchard.tv.apps.CustomIcons
+import app.orchard.tv.apps.IconLibrary
 import app.orchard.tv.apps.SourceLooks
 import app.orchard.tv.apps.FOLDER_KEY_PREFIX
 import app.orchard.tv.apps.SOURCE_KEY_PREFIX
@@ -25,21 +26,33 @@ import app.orchard.tv.apps.TileArtFactory
 import app.orchard.tv.apps.folderEntry
 import app.orchard.tv.apps.sourceEntry
 import app.orchard.tv.settings.AerialSettings
+import app.orchard.tv.settings.Restricted
+import app.orchard.tv.system.XgimiBoost
 import app.orchard.tv.system.Brightness
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.system.HomeStatus
 import app.orchard.tv.system.NetworkStatus
+import app.orchard.tv.system.SourceKind
 import app.orchard.tv.system.SystemProbe
 import app.orchard.tv.system.TvSource
 import app.orchard.tv.system.VolumeStatus
 import app.orchard.tv.ui.home.PinMode
 import app.orchard.tv.ui.home.ScreensaverSkips
+import app.orchard.tv.ui.home.TileFaces
+import app.orchard.tv.ui.theme.Glyph
+import app.orchard.tv.ui.theme.canvasDensity
+import app.orchard.tv.wallpaper.Wallpapers
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** A brightness poll closer than this to a step is stale: the light engine applies the write meanwhile. */
+private const val POLL_QUIET_MS = 400L
 
 sealed interface Overlay {
     data object None : Overlay
@@ -50,9 +63,17 @@ sealed interface Overlay {
     data object HiddenApps : Overlay
     data object Wallpaper : Overlay
     data class Pin(val mode: PinMode, val onDone: () -> Unit) : Overlay
+    /** Setting up Kids and Elders mode (Restricted), from Personalize. */
+    data object Kids : Overlay
 }
 
 enum class CcPage { Main, Inputs, InputSettings, Update, Setup }
+
+/**
+ * Tiles a cold start reads whole before showing Home (two rows and a half, as many as can show);
+ * see AppCatalog.load.
+ */
+private const val LEADING_TILES = 13
 
 /** Time since boot at which the app list is looked at again; see HomeViewModel.catchUpAfterBoot. */
 private val BOOT_CATCH_UP_MS = listOf(60_000L, 180_000L)
@@ -64,6 +85,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     var apps by mutableStateOf<List<AppEntry>>(emptyList()); private set
     var hiddenApps by mutableStateOf<List<AppEntry>>(emptyList()); private set
+
+    /**
+     * Every tile Kids and Elders mode can show, in the owner's Home order: Home's apps with each
+     * folder's in its place, the hidden apps, then the inputs not pinned to Home. Only filled while
+     * the mode is on or being set up.
+     */
+    var kidsCandidates by mutableStateOf<List<AppEntry>>(emptyList()); private set
 
     /** Each folder's apps, by folder id, in the folder's order. */
     var folderApps by mutableStateOf<Map<String, List<AppEntry>>>(emptyMap()); private set
@@ -82,6 +110,23 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Panel brightness 0..1, or null when Aerial cannot change it on this TV. */
     var brightness by mutableStateOf<Float?>(null); private set
+    var brightnessBoost by mutableStateOf<Boolean?>(null); private set
+
+    /**
+     * When the Control Center row last took a step (uptime ms). The light engine reports the new
+     * level a moment after the write, so a poll that runs in between must not put the previous step
+     * back on screen.
+     */
+    private var brightnessActedAt = 0L
+
+    /**
+     * Levels the row asked for, newest kept: between the repeats of a held key the engine only needs
+     * the level it is to end on. Written off the main thread, in order.
+     */
+    private val brightnessSteps = Channel<Int>(Channel.CONFLATED)
+
+    /** XGIMI's light engine steps its own levels; every other TV steps the panel in percent. */
+    private val xgimiBrightness by lazy { SystemProbe.hasXgimiBrightness }
 
     /**
      * Set when Home is pressed: go back to the top row. Done once the window has focus again,
@@ -94,6 +139,17 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Home is the resumed activity: the aerial wallpaper only moves while it is. */
     var resumed by mutableStateOf(false)
+
+    /**
+     * Paused only by Home's bounce on Xiaomi (HomeGuardService.backOnPause), and being brought
+     * straight back: the wallpaper's film plays on as if still resumed. Let go, it left the window
+     * black where the film showed through until Aerial was back 150 ms later, and then started over
+     * (MiTV-MFTR0, Android 14).
+     */
+    var homeBounce by mutableStateOf(false)
+
+    /** In front for the wallpaper's film: resumed, or only bouncing off Home (homeBounce). */
+    val filmFront: Boolean get() = resumed || homeBounce
 
     /** Aerial's screensaver is up (see MainActivity's idle timer). */
     var screensaverVisible by mutableStateOf(false)
@@ -113,18 +169,52 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private var loadJob: Job? = null
 
+    /** A tile picture set or removed from the phone page; see CustomIcons.onChange; before init, which registers it. */
+    private val customIconsChanged: () -> Unit = {
+        DiagLog.i("custom icons changed; reloading Home")
+        reload()
+    }
+
     init {
         AppCatalog.renameFolder = ::renameFolder
         AppCatalog.pinSource = ::pinSourceById
         AppCatalog.layout = layoutOps
         reload()
+        // The light engine is written off the main thread: a held key repeats every few tens of ms,
+        // and doing the HAL call on the key's own thread left the row lagging behind the picture.
+        viewModelScope.launch(Dispatchers.Default) {
+            for (level in brightnessSteps) SystemProbe.setXgimiBrightnessLevel(level)
+        }
         // A tile picture set or removed from the phone page.
-        viewModelScope.launch { snapshotFlow { CustomIcons.version }.drop(1).collect { reload() } }
+        CustomIcons.onChange(customIconsChanged)
+        // Library pictures that arrived, or the library turned on or off.
+        viewModelScope.launch { snapshotFlow { IconLibrary.version }.drop(1).collect { reload() } }
         offerSetupOnce()
         // An input's device or name, chosen from its tile's menu or the phone page.
         viewModelScope.launch { snapshotFlow { SourceLooks.all }.drop(1).collect { if (loaded) arrange() } }
         // An app renamed on the phone page.
         viewModelScope.launch { snapshotFlow { AppNames.all }.drop(1).collect { if (loaded) arrange() } }
+        viewModelScope.launch { snapshotFlow { AerialSettings.previewApps }.drop(1).collect { if (loaded) arrange() } }
+        // Into or out of Kids and Elders mode, or its tiles chosen: another Home.
+        viewModelScope.launch {
+            snapshotFlow { listOf(Restricted.active, Restricted.enabled, Restricted.allowed, overlay == Overlay.Kids, AerialSettings.pinSet) }.drop(1).collect {
+                if (loaded) { arrange(); prepareFaces() }
+            }
+        }
+        // What the mode keeps away or warns of, said at the top of Home.
+        viewModelScope.launch {
+            snapshotFlow { Restricted.blocked }.drop(1).collect { b ->
+                if (b != null) notify(context.getString(R.string.kids_blocked, b.first), Glyph.Kids)
+            }
+        }
+        viewModelScope.launch { snapshotFlow { Restricted.warning }.drop(1).collect { w -> if (w != null) notify(w.first, Glyph.Kids) } }
+        // Another number of apps a row: the artwork again if four a row wants it larger, else
+        // every face at the new size, before the tiles draw them.
+        viewModelScope.launch {
+            snapshotFlow { AerialSettings.homeColumns }.drop(1).collect {
+                if (TileArtFactory.fitColumns()) reload() else if (loaded) prepareFaces()
+            }
+        }
     }
 
     /**
@@ -168,15 +258,75 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         loadJob = viewModelScope.launch {
             val ctx = context
             val started = SystemClock.uptimeMillis()
-            all = AppCatalog.load(ctx)
-            DiagLog.i("${all.size} apps in ${SystemClock.uptimeMillis() - started} ms")
-            sources = withContext(Dispatchers.Default) { SystemProbe.sources(ctx) }
+            // The inputs are probed while the apps load: one after the other, a cold start waited
+            // for both in turn (0.1-0.8 s more on the TVs in issues #452, #454, #537).
+            val probing = async(Dispatchers.Default) { SystemProbe.sources(ctx) }
+            // A cold start reads only the first rows' tiles whole; the rest follow just after.
+            val first: ((Set<String>) -> Set<String>)? = if (loaded) null else { installed -> store.leading(LEADING_TILES, installed) }
+            all = AppCatalog.load(ctx, first)
+            // Where it went: waiting for a thread, the package queries, the tiles, then waiting for
+            // the main thread (busy with Home's first frames on a cold start).
+            val (from, queried, done) = AppCatalog.lastTiming
+            val now = SystemClock.uptimeMillis()
+            DiagLog.i("${all.size} apps in ${now - started} ms (wait ${from - started}, queries ${queried - from}, " +
+                "tiles ${done - queried}, main ${now - done})")
+            sources = probing.await()
             arrange()
-            if (!loaded) {
+            prepareFaces()
+            val wasLoaded = loaded
+            if (!wasLoaded) {
                 DiagLog.i("Home loaded: ${apps.size} tiles, ${sources.size} inputs, ${SystemClock.uptimeMillis() - started} ms")
                 catchUpAfterBoot()
             }
             loaded = true
+            // Counted from this load's own list: a second Home (the guard starting MainActivity
+            // again just after a cold start, Xiaomi MiTV-MFTR0) loads at the same time, and a count
+            // kept in AppCatalog was cleared by the other one's second pass, leaving this Home's
+            // placeholders on screen for good.
+            val waiting = all.count { it.art.placeholder }
+            if (waiting > 0) {
+                val rest = SystemClock.uptimeMillis()
+                all = AppCatalog.load(ctx)
+                arrange()
+                prepareFaces()
+                DiagLog.i("$waiting more tiles in ${SystemClock.uptimeMillis() - rest} ms")
+            }
+            refreshIconLibrary()
+        }
+    }
+
+    /** Ready-made pictures for the apps just loaded, in the background; Home reloads when some arrive. */
+    private fun refreshIconLibrary() {
+        val installed = all.mapTo(HashSet()) { it.packageName }
+        viewModelScope.launch {
+            if (IconLibrary.refresh(installed)) IconLibrary.changed()
+        }
+    }
+
+    private suspend fun prepareFaces(entries: List<AppEntry>, focused: Boolean = false) {
+        val dm = context.resources.displayMetrics
+        withContext(Dispatchers.Default) {
+            TileFaces.prepare(entries.map { it.art }.filterNot { it.placeholder }, dm.widthPixels, canvasDensity(dm), focused)
+        }
+    }
+
+    private var facesJob: Job? = null
+
+    /**
+     * The tiles' faces, in the background: made on each tile's first draw, the whole grid's held up
+     * the main thread at once (see TileFaces). Then the top row's faces at the focused size, which a
+     * tile otherwise makes the first time it is focused, on the main thread.
+     */
+    private fun prepareFaces() {
+        val shown = apps + folderApps.values.flatten()
+        val row = apps.take(AerialSettings.homeColumns)
+        facesJob?.cancel()
+        facesJob = viewModelScope.launch {
+            val started = SystemClock.uptimeMillis()
+            prepareFaces(shown)
+            DiagLog.i("tile faces in ${SystemClock.uptimeMillis() - started} ms")
+            delay(1_000)
+            prepareFaces(row, focused = true)
         }
     }
 
@@ -207,6 +357,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val pinned = sources.filter { it.id in AerialSettings.pinnedSources }.map { sourceEntry(context, it) }
         AppCatalog.pinnedSources = pinned
         AppCatalog.sources = sources
+        // The inputs Android itself lists can play behind Home through a TvView; the ones Aerial
+        // makes up for TCL, Skyworth and the like open only in the maker's own player.
+        Wallpapers.setSources(
+            sources.filter { (it.kind == SourceKind.Hdmi || it.kind == SourceKind.DisplayPort) && '/' in it.id }
+                .map { it.id to (it.deviceName?.let { d -> "${it.label} · $d" } ?: it.label) },
+        )
         // Names typed on the phone page stand in for the apps' own, everywhere Home shows one.
         val named = all.map { e -> AppNames.of(e.key)?.let { e.copy(label = it) } ?: e }
         val arrangement = store.arrange(named + pinned) { folder, inside ->
@@ -215,13 +371,59 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 ?: TileArtFactory.forFolder(shown).also { folderArt[folder.id] = shown to it }
             folderEntry(folder, art)
         }
-        apps = arrangement.home
+        // With a PIN set the phone page can set the mode up too.
+        val kids = Restricted.enabled || overlay == Overlay.Kids || AerialSettings.pinSet
+        kidsCandidates = if (!kids) emptyList() else {
+            val unpinned = sources.filter { it.id !in AerialSettings.pinnedSources }.map { sourceEntry(context, it) }
+            arrangement.home.flatMap { e -> e.folder?.let { arrangement.folders[it.id].orEmpty() } ?: listOf(e) } +
+                arrangement.hidden + unpinned
+        }
+        AppCatalog.kidsCandidates = kidsCandidates
+        if (kids) noteKidsPackages()
+        apps = when {
+            Restricted.active -> Restricted.allowed.mapNotNull { key -> kidsCandidates.firstOrNull { it.key == key } }
+            else -> AerialSettings.previewApps.takeIf { it > 0 }?.let { arrangement.home.take(it) } ?: arrangement.home
+        }
         AppCatalog.home = arrangement.home
         AppCatalog.folderApps = arrangement.folders
         AppCatalog.hiddenApps = arrangement.hidden
         AppCatalog.folders = arrangement.home.filter { it.folder != null }
         folderApps = arrangement.folders
         hiddenApps = arrangement.hidden
+    }
+
+    /** Each input intent's player package, by the intent's URI: resolving it is a PackageManager query. */
+    private val players = HashMap<String, String?>()
+
+    private fun playerOf(source: TvSource): String? = players.getOrPut(source.intent.toUri(0)) {
+        source.intent.component?.packageName
+            ?: runCatching { context.packageManager.resolveActivity(source.intent, 0)?.activityInfo?.packageName }.getOrNull()
+    }
+
+    /** The packages Home Guard lets through in the mode, and the inputs' players it keeps away otherwise. */
+    private fun noteKidsPackages() {
+        val allowed = kidsCandidates.filter { it.key in Restricted.allowed }
+            .mapNotNullTo(HashSet()) { e -> e.source?.let(::playerOf) ?: e.component.packageName }
+        Restricted.notePackages(allowed, sources.mapNotNullTo(HashSet(), ::playerOf))
+    }
+
+    /**
+     * Leaves Kids and Elders mode for now, once the PIN is right; it comes back by itself. The PIN
+     * also unlocks the rest, as any PIN entry does: the parent who just typed it was asked again on
+     * opening Settings right after (issue #718). Locked again as ever, on an app, the screensaver,
+     * standby or Home.
+     */
+    fun leaveKidsMode() {
+        overlay = Overlay.Pin(PinMode.Unlock) {
+            Restricted.suspend()
+            overlay = Overlay.None
+        }
+    }
+
+    /** Opens the mode's setup: with the PIN, or choosing one first, since leaving the mode needs it. */
+    fun setUpKidsMode() {
+        if (!AerialSettings.pinSet) overlay = Overlay.Pin(PinMode.Create) { overlay = Overlay.Kids }
+        else whenUnlocked { overlay = Overlay.Kids }
     }
 
     /** An app or folder on Home, or an app inside a folder. */
@@ -272,10 +474,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** A line at the top of Home that goes away by itself, confirming a choice made out of sight. */
     var notice by mutableStateOf<String?>(null); private set
+    var noticeGlyph by mutableStateOf(Glyph.Power); private set
     private var noticeJob: Job? = null
 
-    fun notify(text: String) {
+    fun notify(text: String, glyph: Glyph = Glyph.Power) {
         notice = text
+        noticeGlyph = glyph
         noticeJob?.cancel()
         noticeJob = viewModelScope.launch {
             delay(4000)
@@ -332,12 +536,15 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             val (n, v, s) = withContext(Dispatchers.Default) {
                 Triple(SystemProbe.network(ctx), SystemProbe.volume(ctx), SystemProbe.sources(ctx))
             }
+            // Home status before the brightness, apart from it: a brightness read that waits on a
+            // vendor binder must not keep the panel saying "not the default home" (issue #892).
+            homeStatus = withContext(Dispatchers.Default) { SystemProbe.homeStatus(ctx) }
             val level = withContext(Dispatchers.Default) { Brightness.level(ctx) }
             network = n; volume = v
             // TvSource holds an Intent, which has no value equality; compare what a tile shows.
-            fun shown(list: List<TvSource>) = list.map { Triple(it.id, it.label, it.deviceName) }
+            // The route too: a corrected Xiaomi source id changes nothing a tile shows.
+            fun shown(list: List<TvSource>) = list.map { listOf(it.id, it.label, it.deviceName, it.intent.toUri(0)) }
             if (shown(s) != shown(sources)) { sources = s; arrange() } else sources = s
-            homeStatus = SystemProbe.homeStatus(ctx)
             brightness = level
         }
     }
@@ -365,9 +572,27 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshPanel() {
         viewModelScope.launch {
             val ctx = context
-            val (home, level) = withContext(Dispatchers.Default) { SystemProbe.homeStatus(ctx) to Brightness.level(ctx) }
-            homeStatus = home
+            homeStatus = withContext(Dispatchers.Default) { SystemProbe.homeStatus(ctx) }
+            brightness = withContext(Dispatchers.Default) { Brightness.level(ctx) }
+        }
+    }
+
+    suspend fun discoverBrightnessBoost() {
+        XgimiBoost.discover(context)
+        refreshBrightness()
+    }
+
+    /** Poll the light engine and Boost together, including changes from the native overlay. */
+    fun refreshBrightness() {
+        viewModelScope.launch {
+            val (level, boost) = withContext(Dispatchers.Default) {
+                Brightness.level(context) to XgimiBoost.enabled()
+            }
+            // A step taken while this read was in flight is newer than the level it read; the poll
+            // after the key is released puts the light engine's own answer back.
+            if (SystemClock.elapsedRealtime() - brightnessActedAt < POLL_QUIET_MS) return@launch
             brightness = level
+            brightnessBoost = boost
         }
     }
 
@@ -386,6 +611,19 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun adjustBrightness(direction: Int) {
+        val current = brightness
+        if (xgimiBrightness && current != null) {
+            // Step from what the row shows and hand the write to the queue: the key's own thread
+            // stays free, and the row moves with the picture instead of after it.
+            if (brightnessBoost == true && direction > 0) return
+            // One step down from 10+ is ordinary 10; subsequent steps use DLP levels 9..1.
+            val next = if (brightnessBoost == true) 1f else Brightness.xgimiStep(current, direction) ?: return
+            if (brightnessBoost != null) brightnessBoost = false
+            brightness = next
+            brightnessActedAt = SystemClock.elapsedRealtime()
+            brightnessSteps.trySend(Math.round(next * SystemProbe.xgimiBrightnessMax))
+            return
+        }
         brightness = Brightness.adjust(context, direction)
     }
 
@@ -441,6 +679,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        CustomIcons.removeOnChange(customIconsChanged)
         if (AppCatalog.renameFolder == ::renameFolder) AppCatalog.renameFolder = null
         if (AppCatalog.pinSource == ::pinSourceById) AppCatalog.pinSource = null
         if (AppCatalog.layout === layoutOps) AppCatalog.layout = null

@@ -10,6 +10,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -35,24 +36,33 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import app.orchard.tv.MainActivity
+import app.orchard.tv.system.SystemScreensaver
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import app.orchard.tv.ui.components.FilmSlot
 import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.system.DiagLog
 import app.orchard.tv.ui.components.Dissolve
+import app.orchard.tv.ui.components.diagLayer
 import app.orchard.tv.ui.theme.LocalReducedMotion
 import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.ui.theme.Type
 import app.orchard.tv.wallpaper.AerialStream
+import app.orchard.tv.wallpaper.Aerial
+import app.orchard.tv.wallpaper.AerialSet
+import androidx.compose.runtime.mutableStateListOf
 import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.wallpaper.AerialFormats
 import app.orchard.tv.wallpaper.AerialQuality
@@ -110,6 +120,7 @@ fun Screensaver(visible: Boolean, apps: List<AppEntry>, now: LocalDateTime, skip
             is SaverCarry.Still -> { PhotoSaver(now, skips.steps, carried.wallpaper, carried); return@AnimatedVisibility }
             null -> Unit
         }
+        val context = LocalContext.current
         var aerialFailed by remember { mutableStateOf(false) }
         var videosFailed by remember { mutableStateOf(false) }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -118,7 +129,7 @@ fun Screensaver(visible: Boolean, apps: List<AppEntry>, now: LocalDateTime, skip
                     now, skips.steps, onUnavailable = { aerialFailed = true }, startAt = remember {
                         // A paused wallpaper film still holds the decoder (one 4K decoder, MiTV-MFTR0).
                         LiveFilm.onHome?.letDecoderGo()
-                        AerialStart.wallpaper()
+                        AerialStart.start(context)
                     },
                 )
                 ScreensaverMode.Photos -> PhotoSaver(now, skips.steps, remember { Wallpapers.screensaverPicture() })
@@ -162,8 +173,12 @@ sealed interface SaverCarry {
     }
 }
 
-/** What a wallpaper's picture is, for the screensaver: where it was taken, else its name. */
-fun stillCaption(wp: app.orchard.tv.wallpaper.Wallpaper): String? = wp.caption?.takeIf { it.isNotBlank() } ?: wp.title
+/**
+ * What a wallpaper's picture is, for the screensaver: where it was taken, else its name. The owner's
+ * own photos have no name but "My Photo", which says nothing over the photo itself.
+ */
+fun stillCaption(wp: app.orchard.tv.wallpaper.Wallpaper): String? =
+    if (wp.kind == WallpaperKind.Photo) null else wp.caption?.takeIf { it.isNotBlank() } ?: wp.title
 
 /** How long one slow push in (or back out) of a still wallpaper takes. */
 private const val DRAW_IN_MS = 60_000
@@ -179,34 +194,69 @@ suspend fun drawIn(push: Animatable<Float, *>) {
 /** [image] over the whole screen, [push] (0 to 1) of the way into its slow draw-in: larger by 8%, drifting right. */
 fun androidx.compose.ui.graphics.drawscope.DrawScope.drawDrawingIn(image: ImageBitmap, push: Float, alpha: Float = 1f) {
     val s = 1f + 0.08f * push
-    val w = size.width * s
-    val h = size.height * s
-    val left = (size.width - w) / 2f + 24.dp.toPx() * push
-    val top = (size.height - h) / 2f
-    drawImage(
-        image,
-        dstOffset = androidx.compose.ui.unit.IntOffset(left.roundToInt(), top.roundToInt()),
-        dstSize = IntSize(w.roundToInt(), h.roundToInt()),
-        alpha = alpha,
-        filterQuality = FilterQuality.Low,
-    )
+    // Scaled and moved by the canvas, in fractions of a pixel: placed on whole pixels, the picture
+    // stood still and jumped a pixel every few frames, its edges at different times (it draws in
+    // only 2-3 px a second), and read as a shake (Xiaomi MiTV-MFTR0).
+    val drift = 24.dp.toPx() * push
+    withTransform({
+        translate(left = drift)
+        scale(s, s, center)
+    }) {
+        drawImage(
+            image,
+            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+            alpha = alpha,
+            filterQuality = FilterQuality.Low,
+        )
+    }
 }
 
 /** Where a screensaver of aerials starts when it cannot carry Home's player on (AerialDream). */
 object AerialStart {
     /**
-     * Where the aerial wallpaper is, for a screensaver no one started from Home: TCL's own timer
-     * starting AerialDream over it. Null with any other wallpaper.
+     * Where a screensaver of aerials starts: the film and moment the aerial wallpaper or the last
+     * screensaver left (one spot for both, whatever the wallpaper, so the two are always the same
+     * film), or the day's new film from its start (AerialSet.takeDaily).
      */
-    fun wallpaper(): Pair<String, Long>? =
-        if (Wallpapers.selectedId == Wallpapers.LIVE) LiveFilm.onHome?.spot() ?: Wallpapers.liveSpot() else null
+    fun start(context: android.content.Context): Pair<String, Long>? {
+        AerialSet.takeDaily(context)?.let { film ->
+            DiagLog.i("today's new film ${film.id}")
+            Wallpapers.leaveLiveFilm(film.id, 0L)
+            return film.id to 0L
+        }
+        return LiveFilm.onHome?.spot() ?: Wallpapers.liveSpot()
+    }
+
+    /**
+     * A few seconds before Home's screensaver: where it is to start in another format than the
+     * wallpaper's (Dolby Vision chosen), that start is fetched to disk, at the moment the wallpaper's
+     * film will be at [leadMs] on (AerialStream.prepareStart). The screensaver then starts there.
+     */
+    suspend fun prepareAhead(context: android.content.Context, leadMs: Long) {
+        if (Wallpapers.screensaver != ScreensaverMode.Aerial || AerialFormats.screensaverCarriesWallpaper(context)) return
+        val quality = AerialFormats.forScreensaver(context, overWallpaper = true).let { q ->
+            aerialQualityCap?.takeIf { it.ordinal < q.ordinal } ?: q
+        }
+        val live = LiveFilm.onHome
+        // A new day starts the screensaver on its new film, from the start (start()).
+        val (id, at) = if (AerialSet.due(context)) AerialSet.nextNew(context).id to 0L
+            else live?.spot()?.let { (id, at) -> id to at + if (live.moving) leadMs else 0L } ?: Wallpapers.liveSpot() ?: return
+        val film = Aerials.all(context).firstOrNull { it.id == id } ?: return
+        AerialStream.prepareStart(context, film, quality, aerialsOverHttp, at)
+        // And the frame it starts on, as Home's picture to come back on (issue #1238).
+        if (Wallpapers.selectedId == Wallpapers.LIVE) SaverFrames.prepareAhead(context, id, at)
+    }
+
+    /** A screensaver of aerials of its own is up (Home's or the dream): it moves the wallpaper's spot on. */
+    @Volatile
+    var running = false
 }
 
 /**
  * The aerial wallpaper's film carried on as the screensaver, one shot from Home: the same player,
- * in the wallpaper's own format, through to the films after it. Not switched to Dolby Vision where
- * the screensaver could play it: these TVs have one 4K decoder, and the switch showed black for
- * 1–3.5 s (Xiaomi MiTV-MFTR0), which the owner found worse than the format.
+ * in the wallpaper's own format, through to the films after it. Not with Dolby Vision chosen by hand
+ * (AerialFormats.screensaverCarriesWallpaper): these TVs have one 4K decoder, and the switch showed
+ * black for 1–3.5 s (Xiaomi MiTV-MFTR0), which only an owner who asked for Dolby Vision should get.
  */
 @Composable
 private fun FilmCarry(film: LiveFilm, now: LocalDateTime, steps: SharedFlow<Int>) {
@@ -217,34 +267,83 @@ private fun FilmCarry(film: LiveFilm, now: LocalDateTime, steps: SharedFlow<Int>
             delay(1000)
         }
     }
-    LaunchedEffect(steps) { steps.collect { film.skip(it) } }
-    Labels(caption, now, showTime = false)
+    val context = LocalContext.current
+    LaunchedEffect(steps) { steps.collect { film.skip(context, it) } }
+    // A new day's film comes in as the screensaver starts, over the wallpaper's film (AerialSet).
+    LaunchedEffect(Unit) { if (AerialSet.due(context)) film.skip(context, 1) }
+    Labels(caption, now, showTime = false, shade = false)
+}
+
+/** Where the labels' shade ends at the top and starts at the bottom, of the screen's height. */
+private const val SHADE_TOP = 0.18f
+private const val SHADE_BOTTOM = 0.7f
+
+/**
+ * The labels' shade, baked small and stretched: as two full-screen gradients drawn each frame it
+ * was the costliest thing on the screen over a playing film (see Images.homeShade).
+ */
+private val labelShadeImage by lazy { labelShade() }
+
+private fun labelShade(): ImageBitmap {
+    val h = 128f
+    val out = android.graphics.Bitmap.createBitmap(4, h.toInt(), android.graphics.Bitmap.Config.ARGB_8888)
+    val c = android.graphics.Canvas(out)
+    fun black(a: Float) = android.graphics.Color.argb((a * 255).roundToInt(), 0, 0, 0)
+    c.drawRect(0f, 0f, 4f, h, android.graphics.Paint().apply {
+        shader = android.graphics.LinearGradient(0f, h * SHADE_BOTTOM, 0f, h, 0, black(0.45f), android.graphics.Shader.TileMode.CLAMP)
+    })
+    c.drawRect(0f, 0f, 4f, h, android.graphics.Paint().apply {
+        shader = android.graphics.LinearGradient(0f, 0f, 0f, h * SHADE_TOP, black(0.3f), 0, android.graphics.Shader.TileMode.CLAMP)
+    })
+    return out.asImageBitmap()
 }
 
 /** Place name bottom-left, time top-right: how tvOS labels its screensaver. */
 @Composable
-private fun Labels(caption: String?, now: LocalDateTime, showTime: Boolean = true) {
+private fun Labels(
+    caption: String?,
+    now: LocalDateTime,
+    showTime: Boolean = true,
+    /** A shade under the labels: over photos. The aerial films are left as they are, as on Home. */
+    shade: Boolean = true,
+) {
     // Fades in where Home's own clock has moved to, as the photos cover it.
     val time by animateFloatAsState(if (showTime) 1f else 0f, tween(2000), label = "time")
     Box(Modifier.fillMaxSize()) {
-        Canvas(Modifier.fillMaxSize()) {
-            // Just enough shade under the text to read it over bright sky or snow.
-            drawRect(Brush.verticalGradient(0.7f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.45f)))
-            drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.3f), 0.18f to Color.Transparent))
+        if (shade) Canvas(Modifier.fillMaxSize().diagLayer("shade")) {
+            val shade = labelShadeImage
+            // Just enough shade under the text to read it over bright sky or snow. Only its two
+            // bands: the clear middle would cost the GPU as much to fill (Lite's SaverView.Shade).
+            val w = size.width.roundToInt()
+            val h = size.height.roundToInt()
+            val top = (h * SHADE_TOP).roundToInt()
+            val bottom = (h * SHADE_BOTTOM).roundToInt()
+            val sh = shade.height
+            drawImage(shade, srcSize = IntSize(shade.width, (sh * SHADE_TOP).roundToInt()), dstSize = IntSize(w, top), filterQuality = FilterQuality.Low)
+            drawImage(
+                shade, srcOffset = IntOffset(0, (sh * SHADE_BOTTOM).roundToInt()), srcSize = IntSize(shade.width, sh - (sh * SHADE_BOTTOM).roundToInt()),
+                dstOffset = IntOffset(0, bottom), dstSize = IntSize(w, h - bottom), filterQuality = FilterQuality.Low,
+            )
         }
-        if (time > 0f) BasicText(
+        val drift = saverDrift(now)
+        if (time > 0f && AerialSettings.screensaverClock) BasicText(
             timeText(now),
             style = SaverClockStyle,
             modifier = Modifier
                 .align(if (AerialSettings.clockRight) Alignment.TopEnd else Alignment.TopStart)
                 .padding(top = SaverClockTop, start = SaverClockSide, end = SaverClockSide)
-                .graphicsLayer { alpha = time },
+                .graphicsLayer {
+                    alpha = time
+                    translationX = drift.x.toPx()
+                    translationY = drift.y.toPx()
+                },
         )
         AnimatedContent(
             targetState = caption.orEmpty(),
             // One after the other: two names fading across each other in the same place smeared.
             transitionSpec = { fadeIn(tween(600, delayMillis = 400, easing = Motion.EaseOut)) togetherWith fadeOut(tween(400, easing = Motion.EaseOut)) },
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 56.dp, bottom = 44.dp),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 56.dp, bottom = 44.dp)
+                .graphicsLayer { translationX = drift.x.toPx(); translationY = -drift.y.toPx() },
             label = "caption",
         ) { text ->
             BasicText(
@@ -261,6 +360,24 @@ private fun Labels(caption: String?, now: LocalDateTime, showTime: Boolean = tru
  * here when the screensaver carries on its film, and from the left it crossed the whole screen to
  * the right, a long slide for a moment that should be quiet (issue #357).
  */
+/**
+ * How far the screensaver's words have wandered from their place: a little, somewhere new every
+ * two minutes and eased over seconds, so nothing sits on the same pixels all night (OLED panels,
+ * issue #416). Too little to read as movement; the clock screensaver moves its clock by itself.
+ */
+@Composable
+internal fun saverDrift(now: LocalDateTime): DpOffset {
+    val slot = now.toLocalDate().toEpochDay() * 720 + (now.hour * 60 + now.minute) / 2
+    val rnd = remember(slot) { Random(slot) }
+    val target = remember(slot) { DpOffset(SaverDriftX * (rnd.nextFloat() * 2 - 1), SaverDriftY * (rnd.nextFloat() * 2 - 1)) }
+    val x by animateDpAsState(target.x, tween(6000, easing = Motion.EaseInOut), label = "drift-x")
+    val y by animateDpAsState(target.y, tween(6000, easing = Motion.EaseInOut), label = "drift-y")
+    return DpOffset(x, y)
+}
+
+private val SaverDriftX = 24.dp
+private val SaverDriftY = 14.dp
+
 // The same style as the small clock, which grows into it, so the hand-off does not jump.
 internal val SaverClockStyle = Type.SmallClock.copy(fontSize = Type.LargeTitle.fontSize * 1.3f, color = Color.White.copy(alpha = 0.92f))
 internal val SaverClockTop = 40.dp
@@ -282,7 +399,11 @@ private var aerialQualityCap: AerialQuality? = null
 
 /**
  * [startAt]: the aerial wallpaper's film and moment to begin with, played in the wallpaper's format
- * (AerialFormats.forWallpaper) so it goes on as the wallpaper looked.
+ * so it goes on as the wallpaper looked, or in Dolby Vision where chosen (AerialFormats.forScreensaver).
+ * Over the aerial wallpaper, the film and moment it is at are the wallpaper's to go on from
+ * (Wallpapers.leaveLiveFilm): wallpaper and screensaver are one film in either format (owner,
+ * 2026-10-29; until then the Dolby Vision screensaver began on any film whose start was on disk,
+ * and Home came back on yet another).
  */
 @Composable
 private fun AerialSaver(
@@ -293,16 +414,29 @@ private fun AerialSaver(
 ) {
     val context = LocalContext.current
     var quality by remember {
-        val wanted = if (startAt != null) AerialFormats.forWallpaper(context) else AerialFormats.resolve(context, AerialSettings.aerialQuality)
+        val wanted = AerialFormats.forScreensaver(context, overWallpaper = startAt != null)
         mutableStateOf(aerialQualityCap?.takeIf { it.ordinal < wanted.ordinal } ?: wanted)
     }
-    val films = remember {
-        val all = Aerials.all(context).shuffled()
-        val first = startAt?.let { (id, _) -> all.firstOrNull { it.id == id } }
-        if (first != null) listOf(first) + (all - first) else AerialStream.withOpenerFirst(context, all, quality)
+    // Where it is goes to the one spot the aerial wallpaper and the next screensaver go on from
+    // (Wallpapers.leaveLiveFilm), whatever the wallpaper is now: switched to the aerial one later,
+    // it begins on this film.
+    val overLive = remember { Wallpapers.selectedId == Wallpapers.LIVE }
+    fun leave(film: String, atMs: Long, persist: Boolean) = Wallpapers.leaveLiveFilm(film, atMs, persist)
+    // The moment fetched ahead (AerialStart.prepareAhead), where it is the wallpaper's within a few
+    // seconds: it plays from disk.
+    @Suppress("NAME_SHADOWING")
+    val startAt = remember {
+        startAt?.let { (id, at) ->
+            AerialStream.prepared?.takeIf { it.film == id && it.quality == quality && kotlin.math.abs(it.atMs - at) < PREPARED_SLACK_MS }
+                ?.let { DiagLog.i("screensaver starts at the moment fetched ahead (${it.atMs - at} ms off)"); id to it.atMs }
+                ?: (id to at)
+        }
     }
+    // The films kept (AerialSet), from the wallpaper's: the wallpaper plays them in the same order.
+    val films = remember { mutableStateListOf<Aerial>().apply { addAll(AerialSet.playlist(context, startAt?.first)) } }
     val firstAtMs = remember { startAt?.takeIf { (id, _) -> films.first().id == id }?.second ?: 0L }
-    val player = remember { AerialStream.player(context, quality) }
+    // Its decoder starts on the film's own surface, not ExoPlayer's placeholder (AerialStream.player).
+    val player = remember { AerialStream.player(context, quality, decodeOnScreen = true) }
     var index by remember { mutableIntStateOf(0) }
     var failures by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(false) }
@@ -315,7 +449,10 @@ private fun AerialSaver(
     val film = films[index.mod(films.size)]
 
     // Black veil that lifts once the film is actually moving, and drops when the viewer skips.
-    val veil by animateFloatAsState(if (playing) 0f else 1f, tween(if (playing) 1500 else 400), label = "veil")
+    // Quickly in Dolby Vision: the TV has gone black already as it changed mode, and 1.5 s more of
+    // black on top read as the screensaver being slow to start (owner, 2026-10-29).
+    val liftMs = if (quality == AerialQuality.DolbyVision) DV_LIFT_MS else 1500
+    val veil by animateFloatAsState(if (playing) 0f else 1f, tween(if (playing) liftMs else 400), label = "veil")
 
     fun load(at: Int, fromMs: Long = 0L) {
         player.setMediaItems(films.map { AerialStream.mediaItem(it, quality, aerialsOverHttp) }, at, fromMs)
@@ -323,9 +460,27 @@ private fun AerialSaver(
         player.playWhenReady = true
     }
 
-    fun skip(step: Int) {
+    /** The next film kept, after one that would not play. */
+    fun next() {
         playing = false
-        if (step < 0) player.seekToPreviousMediaItem() else player.seekToNextMediaItem()
+        player.seekToNextMediaItem()
+        if (player.playbackState == Player.STATE_IDLE) player.prepare()
+    }
+
+    /** The viewer's left and right: back to a film kept, or a new one (AerialSet.addNew). */
+    fun skip(step: Int) {
+        if (step < 0) {
+            playing = false
+            player.seekToPreviousMediaItem()
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            return
+        }
+        val new = AerialSet.addNew(context)
+        val at = player.currentMediaItemIndex + 1
+        films.add(at, new)
+        player.addMediaItem(at, AerialStream.mediaItem(new, quality, aerialsOverHttp))
+        playing = false
+        player.seekTo(at, 0L)
         if (player.playbackState == Player.STATE_IDLE) player.prepare()
     }
 
@@ -333,17 +488,21 @@ private fun AerialSaver(
         val opened = SystemClock.elapsedRealtime()
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
-                if (!playing) DiagLog.i("first frame of ${player.currentMediaItem?.mediaId} after ${SystemClock.elapsedRealtime() - opened} ms")
+                if (!playing) {
+                    DiagLog.i("first frame of ${player.currentMediaItem?.mediaId} after ${SystemClock.elapsedRealtime() - opened} ms")
+                    SystemScreensaver.dreamFirstFrame()?.let { MainActivity.dreamShowedAfter(context, it) }
+                }
                 playing = true
                 shownAny = true
                 failures = 0
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) DiagLog.i("${mediaItem?.mediaId} starts over (kept film)")
                 index = player.currentMediaItemIndex
                 attempt++
                 // A film that simply ended hands over to the next one, already loaded, without a gap.
-                if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) playing = false
+                if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) playing = false
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -375,14 +534,17 @@ private fun AerialSaver(
                     load(player.currentMediaItemIndex)
                 } else {
                     failures++
-                    skip(1)
+                    next()
                 }
                 attempt++
             }
         }
         player.addListener(listener)
         load(0, firstAtMs)
+        AerialStart.running = true
         onDispose {
+            AerialStart.running = false
+            if (shownAny) player.currentMediaItem?.mediaId?.let { leave(it, player.currentPosition, persist = true) }
             handler.removeCallbacksAndMessages(null)
             player.removeListener(listener)
             player.release()
@@ -391,14 +553,20 @@ private fun AerialSaver(
 
     LaunchedEffect(index) {
         caption = null
+        var ticks = 0
         while (true) {
             delay(1000)
-            if (playing) caption = film.captionAt((player.currentPosition / 1000).toInt())
+            if (!playing) continue
+            caption = film.captionAt((player.currentPosition / 1000).toInt())
+            // Every second in memory, so Home comes back on this moment; to prefs now and then, for
+            // a process that ends under the screensaver.
+            leave(film.id, player.currentPosition, persist = ticks++ % 30 == 0)
         }
     }
     LaunchedEffect(steps) {
         steps.collect { step ->
-            if (films.size < 2) return@collect
+            // Right always brings a new film; left needs another to go back to.
+            if (step < 0 && films.size < 2) return@collect
             skip(step)
         }
     }
@@ -411,33 +579,45 @@ private fun AerialSaver(
         // Nothing has played at all this time: Apple's CDN is out of reach. Hand over to the photo
         // screensaver after two films rather than three, so the screen is not black for long
         // (Sony A8G and X90J, TCL 65S515D, issue #20).
-        if (!shownAny && failures >= 2) onUnavailable() else skip(1)
+        if (!shownAny && failures >= 2) onUnavailable() else next()
     }
     LaunchedEffect(failures) {
         if (failures >= 3) onUnavailable()
     }
     // While a film plays, get the next screensaver's first film ready on disk.
-    LaunchedEffect(playing) {
-        if (playing) AerialStream.prepareOpener(context, films, film, quality, aerialsOverHttp)
+    // And the index of this film in the wallpaper's format, where that is another: Home goes on
+    // from this moment with one request to Apple.
+    LaunchedEffect(playing, index) {
+        val home = AerialFormats.forWallpaper(context)
+        if (playing && overLive && home != quality) AerialStream.prepareSeek(context, film, home, aerialsOverHttp)
     }
 
+    // A picture wallpaper is not carried into the aerial screensaver: the two cannot blend (another
+    // plane, Dolby Vision or HDR on the film), and holding the picture until the film moved kept
+    // Home's wallpaper on screen for seconds (Xiaomi MiTV-MFTR0, 1.61 to 1.63).
     AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = { ctx ->
-            SurfaceView(ctx).also {
-                it.holder.addCallback(object : SurfaceHolder.Callback {
+            FilmSlot(ctx).also {
+                it.surface.holder.addCallback(object : SurfaceHolder.Callback {
                     override fun surfaceCreated(holder: SurfaceHolder) = DiagLog.i("film surface created")
                     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
                     override fun surfaceDestroyed(holder: SurfaceHolder) = DiagLog.i("film surface destroyed")
                 })
-                player.setVideoSurfaceView(it)
+                player.setVideoSurfaceView(it.surface)
             }
         },
-        onRelease = { player.clearVideoSurfaceView(it) },
+        onRelease = { player.clearVideoSurfaceView(it.surface) },
     )
     Box(Modifier.fillMaxSize().graphicsLayer { alpha = veil }.background(Color.Black))
-    Labels(if (playing) caption ?: film.captionAt(((if (index == 0) firstAtMs else 0L) / 1000).toInt()) else null, now)
+    Labels(if (playing) caption ?: film.captionAt(((if (index == 0) firstAtMs else 0L) / 1000).toInt()) else null, now, shade = false)
 }
+
+/** How quickly the black lifts off a Dolby Vision film once it moves. */
+private const val DV_LIFT_MS = 400
+
+/** How far from the wallpaper's moment a start fetched ahead may be and still be used. */
+private const val PREPARED_SLACK_MS = 6_000L
 
 /** How long before a film whose decoder would not open is tried once more at the same quality. */
 private const val RETRY_MS = 1_500L

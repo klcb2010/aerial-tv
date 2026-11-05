@@ -14,7 +14,7 @@
 | 策略 | 作用 |
 |---|---|
 | `PmStrategy` | 通过安装标志识别 ADB / pm 安装，**一律拒绝** |
-| `LauncherStrategy` | APK 声明了 MAIN + HOME，签名就必须和 `com.tcl.cyberui` 或平台签名一致，否则拒绝 |
+| `LauncherStrategy` | APK 声明了 MAIN + HOME 时：包名在云端白名单里就放行；否则签名要和**当前默认桌面**一致（没有默认桌面时比 `com.tcl.cyberui`），并且带 `meta-data com.tcl.app.type = com.tcl.ui`，两条都满足才放行（见下） |
 | `ThridStrategy` | 只放行由系统应用或 `com.android.packageinstaller` 发起的「显式安装」 |
 | `BlackStrategy` / `OverDueStrategy` / `SafeStrategy` | 黑名单 / 过期 / 放行 |
 
@@ -24,6 +24,8 @@
 - TCL 应用商店 `com.tcl.appmarket2` 的 `android.intent.action.APPSTORE_INSTALL_APK` 广播（`ThirdAppManagerReceiver`）：只按包名从商店升级，`Fileurl` 以 `apk` 结尾的直接忽略，装不了本地文件。
 - 媒体中心 `com.tcl.ui_mediaCenter`（系统 App，自己的文件浏览里能装 APK，见 `PackageInstallUtils`）：可以从 adb 直接打开某个目录（`-n com.tcl.ui_mediaCenter/.main.FileListActivity --es extra_title Download --es extra_device_path /storage/emulated/0 --es extra_path /storage/emulated/0/Download --ei extra_device_type 3 --ei extra_media_file_type 64`），但内置存储的目录一直卡在加载，只对 U 盘有效。
 - 安全卫士 `com.tcl.guard` 能装 U 盘里的 APK（户主确认过），没有找到能传本地路径的入口。
+
+`LauncherStrategy.isTclLauncher()` 的顺序（2026-10-30 从本机 `PackageInstaller.apk` 反编译，#983）：取 `getHomeActivities()` 的包名，为空时用 `com.tcl.cyberui`（再没有就用 `com.android.providers.settings`）；新 APK 的签名和它比，不一致就拒绝；再看 application 的 `com.tcl.app.type` 是不是 `com.tcl.ui`。所以 standard 版已经是默认桌面时，更新比对的是 Aerial 自己的签名，能过；1.72 之后的 standard 版带了这个 meta-data，应用内更新应该就能装（待 #983 报告人确认）。Aerial 不是默认桌面时（首次安装、guard 用户）比的是 TCL 桌面的签名，仍然过不了。
 
 能过校验的关键是「由 App 把 APK 交给系统安装界面」：当贝不是系统 App 也能装成功，说明 `ThridStrategy` 只拦 adb / pm 直接安装。
 
@@ -36,14 +38,14 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
   - 握手：第一条消息发 `159>>1>>0`，表示不加密。电视会回 `253>>1>>0`，以及一条 `159>>…` 设备信息。
   - 心跳：发 `150>>`，电视回 `150>>YES`。会话安静太久会被电视断开。
   - 安装指令：`223>>INSTALL>>包名>>名字>>下载地址>>2>>versionCode>>大小MB>>>>>>>>apkPathMd5`。来源填 `2`（本地）并带上 `apkPathMd5`，就会跳过商店查询，也跳过版本和签名检查，直接在电视右上角弹「多屏互动：正在发起应用推送，同意后将接收应用并进行安装 [拒绝] [同意]」。
-  - 回复：`223>>INSTALL>>…>>confirm_pending|denied`；同意之后会连续收到 `223>>PROGRESS>>包名>>名字>>阶段>>百分比>>…`，阶段 1 是下载中，3 是安装中，5 是装好了，2 是失败。
+  - 回复：`223>>INSTALL>>…>>confirm_pending|denied`；同意之后会连续收到 `223>>PROGRESS>>包名>>名字>>阶段>>百分比>>…`，阶段 1 是下载中，3 是安装中，5 是装好了，2 是失败，4 是下载完但被系统校验拒绝（电视上显示「安装失败 100%」）。2026-11-02 实测：推 `aerial-standard.apk` 时校验器日志是 `verifier: fetch signature info from: com.tcl.cyberui` / `signature does not match for tcl app.orchard.tv, will not be installed!`，多屏互动收到 code=3，回 `PROGRESS>>…>>4>>2`（#1163）。所以 TCL 上只能推 guard 版；guard 版同版本覆盖照常成功。
 - 下载地址用的是 `adb reverse tcp:8765 tcp:8765` 加上 Mac 本机 `127.0.0.1` 的 HTTP 服务，电视下载的是 `http://127.0.0.1:8765/Aerial.apk`，所以不需要在局域网上开端口。
 - 用遥控器操作时：提示框出现后焦点在「拒绝」上，要先按「右」再按 OK。
 - 有 ADB 时不用人去点：提示框是多屏互动的悬浮窗，`uiautomator dump` 能看到「同意」按钮 `com.tcl.MultiScreenInteraction_TV:id/btn_positive`，对它的中心点 `input tap` 就会开始安装（2026-10-21 实测，按钮在 `[1650,240][1858,304]`）。
 - 同一个 versionCode 也可以覆盖安装。
 - 其他指令（发 Intent、截图、模拟按键、应用列表）和加密握手见 [../tcast-protocol.md](../tcast-protocol.md)。
 
-**方法二：当贝**（多屏互动不在或 6553 端口不通时，`install.sh` 会自动回退到这条）
+**方法二：当贝**（多屏互动不在或 6553 端口不通时，`install.sh` 会自动回退到这条；只用电视上已经装着的当贝，不要为此去装当贝或别的应用商店）
 1. `adb push app-guard-release.apk /sdcard/Download/Aerial.apk`，然后触发媒体扫描（`content call --uri content://media --method scan_volume --arg external_primary`）。
 2. 打开当贝市场的安装包管理：`am start -n com.dangbeimarket/.ui.apkmanager.ApkManagerActivity`。
 3. 选中 Aerial →「安装应用」→（首次安装会提示「应用未被认证」，选「继续」）→ 系统安装器的「安装」。升级时只有最后一步。
@@ -62,7 +64,7 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 - 冷启动后，第三方 App 的服务绑定、广播接收和进程启动，都要经过 `TclAppBootManagerImpl`（在 `/apex/com.tcl.tcore/javalib/tcl-service.jar` 里，由 `ActiveServices` 调用 `getTclAppBootManagerInjector().canBindServiceGo`）。默认会拒绝，日志里是 `ActivityManager: forbid bind service app.orchard.tv/...HomeGuardService`，所以开机后停在 TCL 桌面。
 - 放行条件是两个 TCL 自定义的 AppOps：`APP_AUTO_START`（op 100，系统拉起）和 `APP_ASSOC_START`（op 101，其他 App 关联拉起）。默认分别是 `ignore` 和 `default`。`install.sh` 用 `appops set app.orchard.tv APP_AUTO_START allow`（以及 `APP_ASSOC_START`）放行，`restore.sh` 会改回 `default`。
 - 2026-10-20 实测：放行后 `adb reboot`，开机约 0.5 秒通知监听就被绑定，Aerial 被拉起，守护服务接管桌面。
-- 试过但没用的办法：`settings put system boot_app_mode boot_launcher` 加上 `boot_app_componentname app.orchard.tv/.MainActivity`（TCL「开机进入」的设置，由 `com.tcl.ttvs` 的 MMMService 管理），重启后还是进 TCL 桌面，已改回空值。
+- `system boot_app_mode boot_launcher` 加 `boot_app_componentname app.orchard.tv/.MainActivity`（TCL「开机进入」，`com.tcl.ttvs` 的 MMMService 管）：2026-10-20 试时重启后还是进 TCL 桌面；2026-11-03 在 1.81 测试包、当前固件上重测有效：两次 `adb reboot` 都是 13.7–14.1 秒第一个起来的就是 Aerial（在开机画面结束前），TCL 桌面没到过前台；守护在 20.8 秒还以为原桌面在前、多拉了一次（onPause 到 onResume 7 ms）。不设时对照两次：一次 13.8 秒 TCL 桌面、24 秒守护拉回（TCL 桌面露 10 秒），一次一直停在 TCL 桌面直到 5 分钟后屏保（那次开机日志被冲掉，原因没查到）。测完两项改回空值，户主自己再试也满意，1.81 起 `install.sh` 在装有 `com.tcl.ttvs` 或这项已有值的电视上设它，原值记在 `settings global aerial_boot_app_*`，`restore.sh` 改回。#1185 雷鸟鹤 6 2027（T966D5）也是这个设置。
 - TCL 开机时有可能把 `screensaver_components` 写回「艺术画报」（实测出现过一次）。所以 `install.sh` 接管屏保时，会通过 ConfigReceiver 发送 `own_screensaver=true`，之后 Aerial 每次启动都会检查，被改回去就再改成 Aerial（`GuardSetup.keepScreensaver`）。
 
 ## HOME 与守护
@@ -82,8 +84,10 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 ## 音量与亮度
 
 - 音量：写功放的是 SystemUI 里的 `tsdkNative.setVolumeForDevice`。1.40 以前以为它只在显示音量条时才执行，所以控制中心的滑块带 `AudioManager.FLAG_SHOW_UI`，TCL 的音量条会同时弹出来（#288）。2026-10-23 在这台电视上复测：不带这个标志调音量，SystemUI 照样调用 `setVolumeForDevice`（`value = 27`，`ret=0`），也不弹音量条；TCL 75V2（m7221）的报告人测的也一样。1.41 起控制中心的滑块不带标志，只有守护代替按住的音量键连续调时还带（和按键本身一样弹 TCL 的音量条）。
-- 亮度：TCL 的画质 SDK `com.tcl.tvmanager.TTvPictureManager` 在这台电视的 boot classpath 里（`/product/framework/com.tcl.tvmanager.jar`），但 `getGraphicBacklight()` 在屏幕亮着时返回 0，不是真正的背光，所以这台电视仍然打开 TCL 的图像面板。75V2 上它返回实际值，1.41 起那里控制中心有亮度滑块（#363）。
-- 亮度：标准的 `screen_brightness` 被忽略，背光走 TCL 私有的 `tvos.tv.picture.TPictureManager` / `com.tcl.tv.pq.TvBacklightManager`。控制中心的「亮度」改为打开 TCL 的侧边设置面板：`startService(Intent("com.tcl.settings.SHOW_WINDOW").setPackage("com.tcl.settings"))`，打开后默认就在「图像」页，第一项是亮度。
+- 亮度：标准的 `screen_brightness` 被忽略（2026-10-25 读数 78，拖 TCL 的滑块时不变）。控制中心的「亮度」打开 TCL 的侧边设置面板：`startService(Intent("com.tcl.settings.SHOW_WINDOW").setPackage("com.tcl.settings"))`，打开后默认就在「图像」页，第一项是亮度。户主更喜欢这样：不弹 TCL 的亮度条。
+- 亮度：TCL 自己怎么调（2026-10-25 抓日志，户主用遥控器快捷键和 TCL 面板各拖了一轮）：两条路都由 `com.tcl.settings` 的 `PictureImpl` 调 `TTvPictureManager.setBacklight(int)`，即视频背光 `grp_video_backlight`（`sita.video: tos_picture_set_backlight e_mode=0`），刻度 0–100，当时在 16–27 之间。快捷键先经 system_server 的 `TclShortCutKeyManager.adjustBrightness`，再 `startService` 给 TCL 设置（`ITEM=picture_backlight`, `MOTION=DOWN/UP`, `MOTION_VALUE=1`），会弹 TCL 的亮度条。TCL 设置里另一套 `PictureForTROM5Impl`（`com.tcl.tv.pq.TvBacklightManager`，binder 服务 `tcl_tv_display`）在这台不用，服务列表里没有 `tcl_tv_display`。
+- 亮度：第三方程序调不了。`com.tcl.tvmanager.TTvPictureManager` 在 boot classpath 里（`/product/framework/com.tcl.tvmanager.jar`），任何进程都能调，但在 `com.tcl.settings` 以外的进程里（Aerial 的 1.48-guard、shell 的 `app_process`）：`getBacklight()` / `getGraphicBacklight()` / `getBrightness()` 都返回 0，`tsdkNative` 记 `ret=0`，`sitatvservice` 那边没有任何 `tos_picture_get_*` 记录；`setBacklight(23)` 返回成功（`tos_ret=0`），但同样没有 `tos_picture_set_backlight`，背光没动。也就是说，固件把非 TCL 进程的请求在本地挡掉了，而且不报错。所以 Aerial 不显示滑块（`TclPicture.backlight` 只在读数 1–100 时用）。75V2（m7221，Android 8）上同一个 SDK 第三方能读写，1.41 起那里有滑块，报告人已验证（#363）。
+- 亮度：唯一能让第三方改亮度的办法是像快捷键那样 `startService` 给 TCL 设置，但每次都弹 TCL 的亮度条，所以没做。
 
 ## 信号源
 
@@ -98,16 +102,33 @@ TCL 手机 App 有一个「把手机里的 APK 推到电视」的功能。电视
 - 手动测试：`adb shell am start -n com.android.systemui/.Somnambulator`。
 - 1.14 及以前，按键结束屏保时 Aerial 会崩溃：Android 11 起屏保跑在 Activity 里，窗口先被移除（生命周期变成 DESTROYED），然后才调用 `onDreamingStopped`，往回设成 CREATED 会抛异常。崩溃后无障碍服务处于「已启用但没绑定」，守护失效，按 HOME 就进了 TCL 桌面。1.15 修复了崩溃，并在复活时也检查一次「已启用但没绑定」。
 - 遥控器按一下可能到达两次（户主反馈：从屏保按「下」唤醒后焦点跟着进了 App 列表，小米蓝牙遥控器没有），唤醒后 400ms 内的按键都当作唤醒（2026-10-23）。
+- 系统 dream 里，第一帧之后才加进窗口的 SurfaceView 一直拿不到 surface（没有 `surfaceCreated`，SurfaceFlinger 里也没有它的层），影片解码到 ExoPlayer 的占位 surface 上，屏幕全黑（#609，1.49–1.53 的「视频」屏保）。放影片的 view 要在第一帧就组合出来，数据之后再给（1.54 `VideoSaver`）。
 - 1.42：Aerial 的 Dream 是系统屏保时，主页按返回和主页计时到点都通过 `Somnambulator` 启动这个 Dream，不再另起主页里的屏保。以前两套并存：返回键起的是主页屏保（接着放壁纸那段 4K SDR），2 分钟后被系统 Dream（杜比视界）顶掉，`FLAG_KEEP_SCREEN_ON` 挡不住。实测返回键起 Dream，解码器是 `OMX.MS.DOLBY_VISION.DVHE.STN.Decoder`（2026-10-24）。
 - 1.42：只有一个 4K 解码器。主页航拍壁纸（4K HEVC）在播时起 Dream，Dream 的杜比视界 `DECODING_FAILED`，屏保降成 HEVC 且整个进程都降着（户主看到的「按返回只是默认格式」）。换窗口起 Dream 即使 4K 也会黑一下。现在壁纸和屏保都是航拍时不起 Dream，在主页里由壁纸的播放器接着放；`FLAG_KEEP_SCREEN_ON` 能挡住 TCL 的 2 分钟系统屏保（实测 2 分 40 秒没出来），主页计时提前到 1 分 45 秒。别的情况起 Dream 前、Dream attach 时都先让主页壁纸放开解码器（2026-10-24）。
 - 1.42：「从屏保按一下下键焦点连跳好几行」。关 Dream 时杜比视界解码器释放会卡住主线程，这一下的重复键 2.7 秒后才到主页，过了 400ms 的唤醒窗口。现在唤醒 Dream 的那个键整次按键（重复和松开）都由主页吞掉。注意 Dream 失焦时 Android 会给它补一个**被取消的** UP，不能把它当成松开。`input keyevent --longpress DPAD_DOWN` 复现、修复后焦点留在第一排（2026-10-24）。
 - 1.42：守护监听 `screensaver_components`，固件改回「艺术画报」时立即改回 Aerial 的。个性化选「系统内置」时把系统屏保还给 `screensaver_default_component`（艺术画报），返回键起的就是它；选回别的再改回 Aerial 的。都在 MT5879 上验证过（2026-10-24）。
 - 1.42：遥控器信号源键在有 TCL 信号源面板的固件上交给固件（PR #334），实测只弹 TCL 自己的面板。
+- 屏保里按主页键没反应（2026-10-29 修，未发版）：Android 11 守护一直过滤按键，主页键在系统之前被接住，守护「拉回 Aerial」，可 Aerial 本来就在屏保下面，系统又没收到这次按键，屏保就一直开着。现在守护接住主页键时，Aerial 的屏保（`AerialDream`）开着就直接 `finish()`，回到主页；这次按键不算进「连按两下」，免得红外遥控器一次按键到两次时打开最近任务。uinput 实测：单按关屏保回到主页；屏保里间隔 120ms 按两下只关屏保；没有屏保时按两下照旧打开最近任务。「系统内置」屏保（艺术画报）不是 Aerial 的，关不了，仍然没反应。
 - 主屏幕的航拍壁纸（4K SDR，SurfaceView）PixelCopy 能读到，`screencap` 也截得到（2026-10-23）。
+- 但 PixelCopy 复制一帧 4K 要 0.6–1.7 秒（渲染线程被占住，按键积压）；用 MediaMetadataRetriever 从 Apple 的 1080p 文件解帧，会卡死在 TCL 的 `TclMPEG4Extractor` 里，占住 mediaserver 的取帧锁，后面的请求全部排队。请求一多，`MediaCodecList` 也会卡，任何 App 查解码器都会挂住，只能重启（2026-10-30，bugreport 里 mediaserver 有 17 个 binder 线程卡在 `MetadataRetrieverClient::getFrameAtTime`）。所以这台电视不让 mediaserver 从文件取影片的帧（见 ARCHITECTURE「航拍壁纸取不到帧的电视」）。2026-11-04 起改在 Aerial 进程里自己解关键帧（`FilmKeyFrame`，`OMX.google.h264.decoder`，这台没有 c2 解码器）：回桌面是离开时的画面，从杜比视界屏保回来也不黑屏，玻璃每 15 秒跟上影片（#1238，见 ARCHITECTURE「进程内解关键帧」）。实测媒体服务一直正常。
 - **截图截不到视频画面**（视频走独立的硬件图层，截出来是黑的），但字幕和时钟能截到。地名字幕出现，说明视频已经在渲染。
+
+## 视频解码器
+
+- 4K 硬解通道不够两个播放器同时用。2026-10-30 实测：航拍壁纸在后台没放掉 HEVC 解码器，夸克网盘播 4K AVC 时自己的硬解被系统收回，退回软解（CPU 247%），播放卡顿；航拍的出错重试还会再抢一个解码器。
+- 原因：这台进 App 时 onPause 到 onStop 只隔约 260 ms，中间没有一帧，`LaunchedEffect(play)` 要等重组才放解码器，Activity 停了就不再重组（小米 MFTR0 隔 450–860 ms，有一帧，所以没事）。现在 `rememberStops` 在 ON_STOP 当场释放，后台出错不再重试；修复后夸克保持硬解，CPU 约 23%。
+- 航拍片源没有音轨，Aerial 在后台不占音频（只有按键音的 SoundPool）。
 
 ## 其他
 
 - `/sdcard` 截图在 shell 下可以正常写入。
 - TCL 的 `com.tcl.guard`（安全卫士）是大部分 App 的 installerPackageName，其中的 `PackageInstallerService` 是 Binder 接口，shell 用不了。
 - `persist.tcl.installapk.enable=1` 和 `package_verifier_enable=0` 这些属性对上面的校验链都没有影响。
+
+## 按键偶尔卡 1–2 秒再一起到（#1081，2026-11-01 在这台上复现）
+
+雷鸟鹤 6 2025（同为 tcl_mt5879_cn，安卓 11）报告：每 3–5 分钟遥控器卡一下，然后连续触发好几次。在这台上用 `hid` 造的虚拟键盘、在 Aerial 首页每 1.5 秒按一次左右键共 5 分钟（守护开着按键过滤）：100 次按下里中位延迟 4 ms，有一次 1016 ms，按下和抬起一起到。同一时刻 system_server 主线程 `Slow dispatch took 2001ms ... AlarmManager$ListenerWrapper`，是 JobScheduler 的 `*job.delay*` 闹钟，旁边有 TCL 拦 Plex 后台任务的 `forbid bind service`。按键过滤后的按键要经 system_server 主线程重新注入（`AccessibilityInputFilter`，#774 也是这条路），主线程一卡按键就积压。不是 Aerial 的代码；能做的只有不过滤按键（主页键会先显示 TCL 桌面几秒），要户主决定。
+
+## 手机遥控的虚拟输入设备（#1234，雷鸟鹤6 tcl_m7642）
+
+tcl_m7642（安卓 9）上即使什么都没接，也有 `sim-kb`（classes 0x63）和 `sim-mouse`（0x6b）两个设备，带 GAMEPAD 位（0x40）和字母键位（0x2），像是 TCL 手机遥控用的；另有 `sim-TP`（0x115，带 JOYSTICK）和名字里带 virtual 的 `TCL-virtual`。1.63–1.82 把 `sim-kb` / `sim-mouse` 算成手柄，别的 App 里不过滤按键，主页键先到 TCL 桌面、5 秒后才回 Aerial。现在字母键盘不算手柄。MT5879（本机）没有这些设备，只有 MTK 键盘、IR 接收器、`gIrTouch_Mouse` 和蓝牙遥控 `FF_RC902N_C1`（都没有 GAMEPAD 位）。

@@ -50,6 +50,7 @@ fun FolderView(
     enabled: Boolean,
     tileW: Dp,
     tileH: Dp,
+    gap: Dp,
     columns: Int,
     onLaunch: (AppEntry, Rect?) -> Unit,
     onLongPress: (AppEntry, Rect?) -> Unit,
@@ -93,7 +94,7 @@ fun FolderView(
                     modifier = Modifier.padding(bottom = 36.dp),
                 )
                 shownApps.chunked(columns).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(28.dp), modifier = Modifier.padding(bottom = 50.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.padding(bottom = 50.dp)) {
                         row.forEach { app ->
                             AppTile(
                                 app = app,
@@ -102,9 +103,6 @@ fun FolderView(
                                 focusRequester = requester(app.key),
                                 enabled = enabled,
                                 moving = false,
-                                // The folder grows in by itself: its tiles replaying the grid's first
-                                // entrance on top of that made every open drag on.
-                                appearDelayMs = null,
                                 onFocused = { focusedKey = app.key },
                                 onClick = { bounds -> onLaunch(app, bounds) },
                                 onLongPress = { bounds -> menuKey = app.key; onLongPress(app, bounds) },
