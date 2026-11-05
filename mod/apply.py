@@ -78,4 +78,10 @@ edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
      '    if (app.emptySlot) {\n        Spacer(modifier.requiredSize(width, height))\n        return\n    }\n\n    val reduced = LocalReducedMotion.current',
      "empty slot rendering"),
 ])
+edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
+    ('        viewModelScope.launch { snapshotFlow { AerialSettings.previewApps }.drop(1).collect { if (loaded) arrange() } }',
+     '        viewModelScope.launch { snapshotFlow { AerialSettings.previewApps }.drop(1).collect { if (loaded) arrange() } }\n        viewModelScope.launch { snapshotFlow { AerialSettings.hiddenSlots }.drop(1).collect { if (loaded) arrange() } }',
+     "hidden slots live refresh"),
+])
+
 print("[mod] all patches applied")
