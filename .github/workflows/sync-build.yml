@@ -153,7 +153,6 @@ jobs:
               echo "本构建额外注入了 mod/ 中的「隐藏不补位」功能。"
               echo "AERIAL_RELEASE_BODY"
             } >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Prepare APKs for in-app updates
         if: ${{ steps.upstream_release.outputs.publish == 'true' }}
