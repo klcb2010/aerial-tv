@@ -261,7 +261,7 @@ edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
     ('            log = { Log.i(TAG, it); DiagLog.i("update check: $it") },',
      '            log = { Log.i(TAG, it); DiagLog.i("update check: $it") },\n            enabled = { automaticChecksEnabled },',
      "automatic update check gate"),
-    ('        checker?.check(force || manual, maxAgeMs, networkCameUp, when {\n            force -> "forced"\n            networkCameUp -> "network"\n            maxAgeMs == CONTROL_CENTER_MAX_AGE_MS -> "control center"\n            else -> "home"\n        })',
+    ('        checker?.check(force, maxAgeMs, networkCameUp, when {\n            force -> "forced"\n            networkCameUp -> "network"\n            maxAgeMs == CONTROL_CENTER_MAX_AGE_MS -> "control center"\n            else -> "home"\n        })',
      '        checker?.check(force || manual, maxAgeMs, networkCameUp, when {\n            manual -> "manual"\n            force -> "forced"\n            networkCameUp -> "network"\n            maxAgeMs == CONTROL_CENTER_MAX_AGE_MS -> "control center"\n            else -> "home"\n        })',
      "manual update check source"),
     ('        networkCameUp: Boolean = false,\n    ) {\n        checker?.check(force, maxAgeMs, networkCameUp, when {',
