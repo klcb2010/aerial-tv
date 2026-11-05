@@ -107,4 +107,84 @@ edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
      "hidden slots live refresh"),
 ])
 
+
+# One-tap placement below the first row, plus a saved opacity control for its glass plate.
+edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
+    ('    fun hide(key: String) {\n        store.hide(key)\n        arrange()\n    }',
+     '    fun hide(key: String) {\n        store.hide(key)\n        arrange()\n    }\n\n    /** Puts a first-row app or folder at the start of the second row in one step. */\n    fun moveOutOfFirstRow(key: String) {\n        val from = apps.indexOfFirst { it.key == key }\n        val columns = AerialSettings.homeColumns\n        if (from !in 0 until columns || apps.size <= columns) return\n        store.move(key, apps[columns].key)\n        arrange()\n    }',
+     "move out of first row"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+    ('            onMove = { vm.startMove(it) },',
+     '            onMove = { vm.startMove(it) },\n            canMoveOutOfFirstRow = menu?.let { m ->\n                vm.apps.indexOfFirst { it.key == m.key } in 0 until columns && vm.apps.size > columns\n            } == true,\n            onMoveOutOfFirstRow = { key ->\n                closeMenu()\n                vm.moveOutOfFirstRow(key)\n            },',
+     "one-tap second-row menu callbacks"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/Overlays.kt", [
+    ('    onMove: (String) -> Unit,\n    onHide: (String) -> Unit,',
+     '    onMove: (String) -> Unit,\n    canMoveOutOfFirstRow: Boolean,\n    onMoveOutOfFirstRow: (String) -> Unit,\n    onHide: (String) -> Unit,',
+     "AppMenu move-out parameters"),
+    ('                            MenuRow(Glyph.Move, stringResource(R.string.menu_move), { onMove(shownApp.key) }, focusRequester = first)\n                            MenuRow(Glyph.Pencil,',
+     '                            MenuRow(Glyph.Move, stringResource(R.string.menu_move), { onMove(shownApp.key) }, focusRequester = first)\n                            if (canMoveOutOfFirstRow) MenuRow(Glyph.Move, stringResource(R.string.menu_move_out_first_row), { onMoveOutOfFirstRow(shownApp.key) })\n                            MenuRow(Glyph.Pencil,',
+     "folder move-out action"),
+    ('                                MenuRow(Glyph.Move, stringResource(R.string.menu_move), { onMove(shownApp.key) }, focusRequester = first)\n                            }\n                            MenuRow(Glyph.Folder,',
+     '                                MenuRow(Glyph.Move, stringResource(R.string.menu_move), { onMove(shownApp.key) }, focusRequester = first)\n                            }\n                            if (!inFolder && canMoveOutOfFirstRow) MenuRow(Glyph.Move, stringResource(R.string.menu_move_out_first_row), { onMoveOutOfFirstRow(shownApp.key) })\n                            MenuRow(Glyph.Folder,',
+     "app move-out action"),
+])
+
+edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
+    ('    var homePlate by mutableStateOf(true); private set',
+     '    var homePlate by mutableStateOf(true); private set\n\n    /** Opacity of the first-row glass plate, in percent. */\n    var homePlateOpacity by mutableIntStateOf(100); private set',
+     "home plate opacity state"),
+    ('        homePlate = prefs.getBoolean("home_plate", true)',
+     '        homePlate = prefs.getBoolean("home_plate", true)\n        homePlateOpacity = prefs.getInt("home_plate_opacity", 100).coerceIn(0, 100)',
+     "home plate opacity load"),
+    ('    fun chooseHomePlate(on: Boolean) {\n        homePlate = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("home_plate", on) }\n    }',
+     '    fun chooseHomePlate(on: Boolean) {\n        homePlate = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("home_plate", on) }\n    }\n\n    /** Live preview while adjusting; persistence is deliberately deferred until Back. */\n    fun previewHomePlateOpacity(value: Int) {\n        homePlateOpacity = value.coerceIn(0, 100)\n    }\n\n    fun chooseHomePlateOpacity(value: Int) {\n        previewHomePlateOpacity(value)\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putInt("home_plate_opacity", homePlateOpacity) }\n    }',
+     "home plate opacity setters"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeChrome.kt", [
+    ('private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, filmPlate: Boolean, deepSmoke: Boolean, plate: Rect?, scroll: () -> Float, collapse: Float, cover: () -> Float, filmStopped: () -> Float, toSaver: () -> Float, lift: () -> Float, stillOverFilm: Boolean = false) {',
+     'private fun Plate(glass: ImageBitmap?, film: ImageBitmap?, filmPlate: Boolean, deepSmoke: Boolean, plate: Rect?, scroll: () -> Float, collapse: Float, cover: () -> Float, filmStopped: () -> Float, toSaver: () -> Float, lift: () -> Float, stillOverFilm: Boolean = false) {\n    val plateOpacity = AerialSettings.homePlateOpacity / 100f',
+     "plate opacity draw input"),
+    ('        return rest * (if (stillOverFilm) 1f else 1f - cover() * (1f - filmStopped())) * (1f - toSaver())',
+     '        return rest * plateOpacity * (if (stillOverFilm) 1f else 1f - cover() * (1f - filmStopped())) * (1f - toSaver())',
+     "plate opacity visibility"),
+    ('        val base = (1f - smooth(((scroll() / collapse).coerceIn(0f, 1f) / 0.55f).coerceIn(0f, 1f))) * (1f - toSaver())',
+     '        val base = (1f - smooth(((scroll() / collapse).coerceIn(0f, 1f) / 0.55f).coerceIn(0f, 1f))) * plateOpacity * (1f - toSaver())',
+     "plate opacity film base"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
+    ('import androidx.compose.ui.focus.onFocusChanged\n',
+     'import androidx.compose.ui.focus.onFocusChanged\nimport androidx.compose.foundation.focusable\nimport androidx.compose.ui.input.key.Key\nimport androidx.compose.ui.input.key.KeyEventType\nimport androidx.compose.ui.input.key.onPreviewKeyEvent\nimport androidx.compose.ui.input.key.key\nimport androidx.compose.ui.input.key.type\n',
+     "opacity key handling imports"),
+    ('                        AerialSettings.homePlate, AerialSettings::chooseHomePlate,\n                    )',
+     '                        AerialSettings.homePlate, AerialSettings::chooseHomePlate,\n                    )\n                    HomePlateOpacity(note)',
+     "plate opacity setting row"),
+    ('/** Parental PIN on or off; either way goes through the PIN pad (issue #10). */',
+     '@Composable\nprivate fun HomePlateOpacity(note: (String?) -> Unit) {\n    var value by remember { mutableStateOf(AerialSettings.homePlateOpacity) }\n    var editing by remember { mutableStateOf(false) }\n    var focused by remember { mutableStateOf(false) }\n    BackHandler(enabled = editing) {\n        AerialSettings.chooseHomePlateOpacity(value)\n        editing = false\n    }\n    SettingRow(R.string.st_plate_opacity, stringResource(R.string.st_plate_opacity_hint), note) {\n        Row(\n            Modifier\n                .onFocusChanged { state ->\n                    focused = state.isFocused\n                    if (state.isFocused) value = AerialSettings.homePlateOpacity\n                }\n                .focusable()\n                .onPreviewKeyEvent { event ->\n                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false\n                    val next = when (event.key) {\n                        Key.DirectionLeft -> (value - 5).coerceAtLeast(0)\n                        Key.DirectionRight -> (value + 5).coerceAtMost(100)\n                        else -> return@onPreviewKeyEvent false\n                    }\n                    value = next\n                    editing = true\n                    AerialSettings.previewHomePlateOpacity(next)\n                    true\n                },\n            verticalAlignment = Alignment.CenterVertically,\n        ) {\n            BasicText("$value%", style = Type.Body, modifier = Modifier.padding(horizontal = 14.dp))\n            BasicText("‹  ›", style = Type.Caption, modifier = Modifier.padding(end = 10.dp))\n        }\n    }\n}\n\n/** Parental PIN on or off; either way goes through the PIN pad (issue #10). */',
+     "plate opacity directional control"),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    ('    <string name="menu_move">Move</string>',
+     '    <string name="menu_move">Move</string>\n    <string name="menu_move_out_first_row">Move out of first row</string>',
+     "English move-out menu label"),
+    ('    <string name="st_plate">First-row plate</string>',
+     '    <string name="st_plate">First-row plate</string>\n    <string name="st_plate_opacity">First-row plate opacity</string>\n    <string name="st_plate_opacity_hint">Left/right adjusts the glass opacity in 5% steps. Press Back to save.</string>',
+     "English plate opacity setting strings"),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    ('    <string name="menu_move">移动</string>',
+     '    <string name="menu_move">移动</string>\n    <string name="menu_move_out_first_row">移出第一行</string>',
+     "Chinese move-out menu label"),
+    ('    <string name="st_plate">第一排底板</string>',
+     '    <string name="st_plate">第一排底板</string>\n    <string name="st_plate_opacity">第一排底板透明度</string>\n    <string name="st_plate_opacity_hint">按左右方向键以 5% 为步进调整透明度，按返回键保存。</string>',
+     "Chinese plate opacity setting strings"),
+])
+
 print("[mod] all patches applied")
