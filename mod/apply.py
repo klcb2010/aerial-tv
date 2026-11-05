@@ -452,3 +452,47 @@ edit("app/build.gradle.kts", [
 
 # All in-app update metadata and APKs must come from klcb2010/aerial-tv, never upstream.
 # Update endpoints and APK sources are handled by the initial Updates.kt patch above.\n
+
+# When automatic update checks find a newer release, show one dismissible prompt
+# per release. Never download or install until the owner chooses Update Now.
+edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
+    ('    fun diagnostics(): String = if (!started) "not initialized" else',
+     '    fun automaticPromptVersion(): String? {\n        if (!started || !automaticChecksEnabled) return null\n        val latest = available ?: return null\n        return latest.takeIf { prefs.getString("prompt_dismissed", null) != it }\n    }\n\n    fun dismissAutomaticPrompt(version: String) {\n        if (started) prefs.edit { putString("prompt_dismissed", version) }\n    }\n\n    fun diagnostics(): String = if (!started) "not initialized" else',
+     "automatic update prompt persistence"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+    ('import androidx.compose.foundation.layout.Box\n',
+     'import androidx.compose.foundation.layout.Box\nimport androidx.compose.foundation.layout.Column\nimport androidx.compose.foundation.layout.Arrangement\nimport androidx.compose.foundation.layout.width\n',
+     "update prompt layout imports"),
+    ('import androidx.compose.ui.draw.drawWithContent\n',
+     'import androidx.compose.ui.draw.drawWithContent\nimport androidx.compose.foundation.background\nimport androidx.compose.foundation.shape.RoundedCornerShape\nimport androidx.compose.ui.window.Dialog\n',
+     "update prompt dialog imports"),
+    ('import app.orchard.tv.ui.components.liquidGlass\n',
+     'import app.orchard.tv.ui.components.liquidGlass\nimport app.orchard.tv.ui.components.Pressable\nimport app.orchard.tv.update.Updates\n',
+     "update prompt components"),
+    ('    val gridEnabled = overlay == Overlay.None && kidsLock == null',
+     '    val gridEnabled = overlay == Overlay.None && kidsLock == null\n    var updatePrompt by remember { mutableStateOf<String?>(null) }\n    LaunchedEffect(Updates.available, Updates.automaticChecksEnabled, overlay, vm.loaded, kidsLock) {\n        if (!Updates.automaticChecksEnabled) {\n            updatePrompt = null\n        } else if (overlay == Overlay.None && vm.loaded && kidsLock == null) {\n            updatePrompt = Updates.automaticPromptVersion()\n        }\n    }',
+     "observe automatic update availability"),
+    ('        Screensaver(visible = vm.screensaverVisible, apps = apps, now = now, skips = vm.screensaverSkips, carry = when {\n                filmSaver -> SaverCarry.Film(liveFilm)\n                stillCarry != null -> stillCarry\n                else -> null\n            },\n        )',
+     '        Screensaver(visible = vm.screensaverVisible, apps = apps, now = now, skips = vm.screensaverSkips, carry = when {\n                filmSaver -> SaverCarry.Film(liveFilm)\n                stillCarry != null -> stillCarry\n                else -> null\n            },\n        )\n\n        updatePrompt?.let { version ->\n            UpdateAvailableDialog(\n                version = version,\n                onLater = { Updates.dismissAutomaticPrompt(version); updatePrompt = null },\n                onUpdate = {\n                    Updates.dismissAutomaticPrompt(version)\n                    updatePrompt = null\n                    vm.overlay = Overlay.ControlCenter(CcPage.Update)\n                },\n            )\n        }',
+     "show automatic update prompt"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+    ('/** How long the screensaver waits for the wallpaper\'s film to move before playing its own. */',
+     '@Composable\nprivate fun UpdateAvailableDialog(version: String, onLater: () -> Unit, onUpdate: () -> Unit) {\n    val updateFocus = remember { FocusRequester() }\n    LaunchedEffect(Unit) {\n        withFrameNanos { }\n        runCatching { updateFocus.requestFocus() }\n    }\n    Dialog(onDismissRequest = onLater) {\n        Column(\n            Modifier.width(500.dp)\n                .background(Color(0xF01B1B1B), RoundedCornerShape(24.dp))\n                .padding(32.dp),\n            verticalArrangement = Arrangement.spacedBy(18.dp),\n        ) {\n            BasicText(stringResource(R.string.update_prompt_title), style = Type.Title)\n            BasicText(stringResource(R.string.update_prompt_version, version), style = Type.Body)\n            BasicText(stringResource(R.string.update_prompt_message), style = Type.Caption)\n            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {\n                Pressable(onClick = onLater, modifier = Modifier.weight(1f)) { state ->\n                    Box(Modifier.fillMaxWidth().background(Color(0xFF454545), RoundedCornerShape(12.dp)).padding(vertical = 15.dp), contentAlignment = Alignment.Center) {\n                        BasicText(stringResource(R.string.update_prompt_later), style = Type.Body)\n                    }\n                }\n                Pressable(onClick = onUpdate, modifier = Modifier.weight(1f), focusRequester = updateFocus) { state ->\n                    Box(Modifier.fillMaxWidth().background(if (state.focused) Color.White else Color(0xFF777777), RoundedCornerShape(12.dp)).padding(vertical = 15.dp), contentAlignment = Alignment.Center) {\n                        BasicText(stringResource(R.string.update_prompt_now), style = Type.Body.copy(color = if (state.focused) Color.Black else Color.White))\n                    }\n                }\n            }\n        }\n    }\n}\n\n/** How long the screensaver waits for the wallpaper\'s film to move before playing its own. */',
+     "automatic update dialog composable"),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    ('    <string name="st_check_updates_available">Update available</string>',
+     '    <string name="st_check_updates_available">Update available</string>\n    <string name="update_prompt_title">A new version is available</string>\n    <string name="update_prompt_version">Aerial %1$s is ready to install.</string>\n    <string name="update_prompt_message">Would you like to open the update page now?</string>\n    <string name="update_prompt_now">Update now</string>\n    <string name="update_prompt_later">Later</string>',
+     "English automatic update prompt strings"),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    ('    <string name="st_check_updates_available">发现新版本</string>',
+     '    <string name="st_check_updates_available">发现新版本</string>\n    <string name="update_prompt_title">发现新版本</string>\n    <string name="update_prompt_version">Aerial %1$s 已经可以更新。</string>\n    <string name="update_prompt_message">现在打开更新页面吗？</string>\n    <string name="update_prompt_now">立即更新</string>\n    <string name="update_prompt_later">稍后</string>',
+     "Chinese automatic update prompt strings"),
+])
