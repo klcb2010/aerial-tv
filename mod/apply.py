@@ -195,7 +195,7 @@ edit("app/src/main/res/values-zh/strings.xml", [
 # status pill and Back navigation reachable even when every top-row app is hidden.
 edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
     ('    if (app.emptySlot) {\n        Spacer(modifier.requiredSize(width, height))\n        return\n    }',
-     '    if (app.emptySlot) {\n        Box(\n            modifier.requiredSize(width, height)\n                .focusRequester(focusRequester)\n                .onFocusChanged { if (it.isFocused) onFocused() }\n                .focusable(enabled),\n        )\n        return\n    }',
+     '    if (app.emptySlot) {\n        var emptyFocused by remember { mutableStateOf(false) }\n        Box(\n            modifier.requiredSize(width, height)\n                .focusRequester(focusRequester)\n                .onFocusChanged {\n                    emptyFocused = it.isFocused\n                    if (it.isFocused) onFocused()\n                }\n                .focusProperties { if (rowEnd) right = FocusRequester.Cancel }\n                .focusable(enabled)\n                .border(if (emptyFocused) 3.dp else 0.dp, Color.White, RoundedCornerShape(12.dp)),\n        )\n        return\n    }',
      "focusable empty first-row slot"),
 ])
 
