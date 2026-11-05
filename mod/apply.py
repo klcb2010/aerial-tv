@@ -311,11 +311,11 @@ edit("app/src/main/res/values-zh/strings.xml", [
 
 # A one-tap move leaves a durable first-row gap when the setting is enabled.
 edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
-    ('        val list = order.toMutableList()\\n        val from = list.indexOf(key)\\n        val to = list.indexOf(target)',
-     '        val list = order.toMutableList()\\n        list.remove(FIRST_ROW_GAP_PREFIX + key)\\n        val from = list.indexOf(key)\\n        val to = list.indexOf(target)',
+    ('        val list = order.toMutableList()\n        val from = list.indexOf(key)\n        val to = list.indexOf(target)',
+     '        val list = order.toMutableList()\n        list.remove(FIRST_ROW_GAP_PREFIX + key)\n        val from = list.indexOf(key)\n        val to = list.indexOf(target)',
      "manual move clears old first-row gap"),
     ('    private fun save() = prefs.edit {',
-     '    /** Moves an app below the first row while retaining its old slot as a non-interactive gap. */\\n    fun moveOutOfFirstRow(key: String, target: String) {\\n        if (key == target) return\\n        val list = order.toMutableList()\\n        val from = list.indexOf(key)\\n        val to = list.indexOf(target)\\n        if (from < 0 || to < 0 || from >= to) return\\n        list[from] = FIRST_ROW_GAP_PREFIX + key\\n        val targetIndex = list.indexOf(target)\\n        list.add(targetIndex + 1, key)\\n        order = list\\n        save()\\n    }\\n\\n    private fun save() = prefs.edit {',
+     '    /** Moves an app below the first row while retaining its old slot as a non-interactive gap. */\n    fun moveOutOfFirstRow(key: String, target: String) {\n        if (key == target) return\n        val list = order.toMutableList()\n        val from = list.indexOf(key)\n        val to = list.indexOf(target)\n        if (from < 0 || to < 0 || from >= to) return\n        list[from] = FIRST_ROW_GAP_PREFIX + key\n        val targetIndex = list.indexOf(target)\n        list.add(targetIndex + 1, key)\n        order = list\n        save()\n    }\n\n    private fun save() = prefs.edit {',
      "move out with reserved first-row slot"),
 ])
 
