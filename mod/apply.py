@@ -501,23 +501,23 @@ edit("app/src/main/res/values-zh/strings.xml", [
 # Prefer the fork's lightweight version.txt endpoint; fall back to the Releases API.
 # This avoids making manual checks depend on GitHub API rate limits or API reachability.
 edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
-    ('    private fun readLatestVersion(): String {\\n        val tag = JSONObject(read(VERSION_URL)).getString("tag_name")\\n        return tag.removePrefix("upstream-").removePrefix("v")\\n    }',
-     '    private fun readLatestVersion(): String {\\n        val version = runCatching {\\n            read("https://raw.githubusercontent.com/klcb2010/aerial-tv/main/version.txt").trim()\\n        }.getOrNull()?.takeIf { it.matches(Regex("\\\\d+(\\\\.\\\\d+)*")) }\\n        if (version != null) return version\\n        val tag = JSONObject(read(VERSION_URL)).getString("tag_name")\\n        return tag.removePrefix("upstream-").removePrefix("v")\\n    }',
+    ('    private fun readLatestVersion(): String {\n        val tag = JSONObject(read(VERSION_URL)).getString("tag_name")\n        return tag.removePrefix("upstream-").removePrefix("v")\n    }',
+     '    private fun readLatestVersion(): String {\n        val version = runCatching {\n            read("https://raw.githubusercontent.com/klcb2010/aerial-tv/main/version.txt").trim()\n        }.getOrNull()?.takeIf { it.matches(Regex("\\\\d+(\\\\.\\\\d+)*")) }\n        if (version != null) return version\n        val tag = JSONObject(read(VERSION_URL)).getString("tag_name")\n        return tag.removePrefix("upstream-").removePrefix("v")\n    }',
      "raw version file with releases API fallback"),
-    ('        c.readTimeout = 10_000\\n        return try {',
-     '        c.readTimeout = 10_000\\n        c.setRequestProperty("User-Agent", "Aerial-TV-klcb2010")\\n        c.setRequestProperty("Accept", "application/vnd.github+json, text/plain, */*")\\n        return try {\\n            if (c.responseCode !in 200..299) throw java.io.IOException("HTTP ${c.responseCode}")',
+    ('        c.readTimeout = 10_000\n        return try {',
+     '        c.readTimeout = 10_000\n        c.setRequestProperty("User-Agent", "Aerial-TV-klcb2010")\n        c.setRequestProperty("Accept", "application/vnd.github+json, text/plain, */*")\n        return try {\n            if (c.responseCode !in 200..299) throw java.io.IOException("HTTP ${c.responseCode}")',
      "version endpoint HTTP headers and status validation"),
 ])
 
 edit("app/src/main/java/app/orchard/tv/update/UpdateCheck.kt", [
     ('    private var checking = false',
-     '    private var checking = false\\n    private var manualRequested = false',
+     '    private var checking = false\n    private var manualRequested = false',
      "remember manual check during an existing request"),
-    ('        if (checking) {\\n            record("$source skipped: in flight")',
-     '        if (checking) {\\n            if (source == "manual") manualRequested = true\\n            record("$source skipped: in flight")',
+    ('        if (checking) {\n            record("$source skipped: in flight")',
+     '        if (checking) {\n            if (source == "manual") manualRequested = true\n            record("$source skipped: in flight")',
      "manual check joins in-flight request"),
-    ('                checking = false\\n                scheduleRetry()',
-     '                checking = false\\n                if (manualRequested) {\\n                    manualRequested = false\\n                    manualResult(result.startsWith("success"))\\n                }\\n                scheduleRetry()',
+    ('                checking = false\n                scheduleRetry()',
+     '                checking = false\n                if (manualRequested) {\n                    manualRequested = false\n                    manualResult(result.startsWith("success"))\n                }\n                scheduleRetry()',
      "complete queued manual check result"),
 ])
 
