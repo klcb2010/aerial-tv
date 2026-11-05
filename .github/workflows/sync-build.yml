@@ -104,8 +104,24 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Set fork release version
+        id: fork_version
+        if: ${{ github.ref == 'refs/heads/main' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="1.85.${GITHUB_RUN_NUMBER}"
+          code=$((100000 + GITHUB_RUN_NUMBER))
+          echo "name=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Building fork release $version (versionCode $code)"
+
       - name: Build Standard and Guard APKs
-        run: ./gradlew --no-daemon assembleStandardRelease assembleGuardRelease
+        run: |
+          ./gradlew --no-daemon \
+            -PaerialVersionName="${{ steps.fork_version.outputs.name || '1.85' }}" \
+            -PaerialVersionCode="${{ steps.fork_version.outputs.code || '116' }}" \
+            assembleStandardRelease assembleGuardRelease
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
@@ -117,60 +133,40 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Check for a new upstream release
-        id: upstream_release
+      - name: Prepare APKs for fork release
         if: ${{ github.ref == 'refs/heads/main' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Parse with Python's standard JSON library instead of relying on jq.
-          release="$(gh api repos/pengchujin/aerial-tv/releases/latest)"
-          mapfile -t release_fields < <(python3 -c '
-          import base64, json, sys
-          r = json.load(sys.stdin)
-          print(r.get("tag_name") or "")
-          print(r.get("name") or r.get("tag_name") or "")
-          print(base64.b64encode((r.get("body") or "").encode()).decode())
-          ' <<<"$release")
-          upstream_tag="${release_fields[0]:-}"
-          release_name="${release_fields[1]:-}"
-          release_body="$(printf %s "${release_fields[2]:-}" | base64 -d)"
-          test -n "$upstream_tag" || { echo "Upstream release has no tag_name"; exit 1; }
-          tag="upstream-${upstream_tag}"
-          # Always refresh this release's APKs after a successful main build.
-          # This also backfills the stable asset names required by in-app updates.
-          echo "publish=true" >> "$GITHUB_OUTPUT"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "name=${release_name}" >> "$GITHUB_OUTPUT"
-            {
-              echo "body<<AERIAL_RELEASE_BODY"
-              echo "同步自上游 pengchujin/aerial-tv ${upstream_tag}。"
-              echo
-              echo "$release_body"
-              echo
-              echo "本构建额外注入了 mod/ 中的「移出不补位」功能。"
-              echo "AERIAL_RELEASE_BODY"
-            } >> "$GITHUB_OUTPUT"
-
-      - name: Prepare APKs for in-app updates
-        if: ${{ steps.upstream_release.outputs.publish == 'true' }}
         run: |
           set -euo pipefail
           cp app/build/outputs/apk/standard/release/app-standard-release.apk aerial-standard.apk
           cp app/build/outputs/apk/guard/release/app-guard-release.apk aerial-guard.apk
 
-      - name: Publish APKs for a new upstream release
-        if: ${{ steps.upstream_release.outputs.publish == 'true' }}
+      - name: Publish fork release
+        if: ${{ github.ref == 'refs/heads/main' }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.upstream_release.outputs.tag }}
+          tag_name: v${{ steps.fork_version.outputs.name }}
           target_commitish: main
-          name: Aerial ${{ steps.upstream_release.outputs.name }} · klcb2010
-          body: ${{ steps.upstream_release.outputs.body }}
+          name: Aerial ${{ steps.fork_version.outputs.name }} · klcb2010
+          body: |
+            klcb2010/aerial-tv 魔改版正式构建。
+
+            基于 pengchujin/aerial-tv，上游同步与本仓库 mod/ 定制补丁均已应用。
           files: |
             aerial-standard.apk
             aerial-guard.apk
           overwrite_files: true
           make_latest: true
+
+      - name: Publish in-app update version
+        if: ${{ github.ref == 'refs/heads/main' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\\n' "${{ steps.fork_version.outputs.name }}" > version.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish in-app update version ${{ steps.fork_version.outputs.name }}"
+            git push origin HEAD:main
+          fi
