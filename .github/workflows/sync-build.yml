@@ -1,9 +1,11 @@
 name: Sync upstream and build Aerial
 
 on:
+  # 本仓库有人提交代码时构建；Actions 自己产生的提交由 job 条件排除。
   push:
     branches:
       - "**"
+  # 定时任务只检查上游是否发布了新 Release，不跟踪上游普通代码提交。
   schedule:
     - cron: "17 */6 * * *"
   workflow_dispatch:
@@ -26,47 +28,69 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.ref_name }}
 
-      - name: Sync upstream source (protected local files are retained)
-        id: sync_upstream
-        if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'schedule' }}
+      - name: Check whether upstream has a new Release
+        id: upstream_release
+        if: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
         shell: bash
         run: |
           set -euo pipefail
-          echo "changed=false" >> "$GITHUB_OUTPUT"
-          git remote add upstream https://github.com/pengchujin/aerial-tv.git
-          git fetch --depth=1 upstream main
-          mkdir -p /tmp/aerial-upstream
-          git archive upstream/main | tar -x -C /tmp/aerial-upstream
+          release_tag="$(curl -fsSL https://api.github.com/repos/pengchujin/aerial-tv/releases/latest | jq -r '.tag_name // empty')"
+          test -n "$release_tag" || { echo "Could not determine the latest upstream Release."; exit 1; }
+          previous_tag="$(cat .github/upstream-release.txt 2>/dev/null || true)"
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+          if [[ "$release_tag" == "$previous_tag" ]]; then
+            echo "new_release=false" >> "$GITHUB_OUTPUT"
+            echo "No new upstream Release ($release_tag); skip sync, build and publish."
+          else
+            echo "new_release=true" >> "$GITHUB_OUTPUT"
+            echo "New upstream Release detected: $previous_tag -> $release_tag"
+          fi
 
-          # These are the only local-owned areas. Never let upstream overwrite them.
+      - name: Sync the newly released upstream source
+        id: sync_upstream
+        if: ${{ steps.upstream_release.outputs.new_release == 'true' }}
+        shell: bash
+        env:
+          UPSTREAM_RELEASE_TAG: ${{ steps.upstream_release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git remote add upstream https://github.com/pengchujin/aerial-tv.git
+          git fetch --depth=1 upstream "refs/tags/$UPSTREAM_RELEASE_TAG:refs/tags/$UPSTREAM_RELEASE_TAG"
+          mkdir -p /tmp/aerial-upstream
+          git archive "$UPSTREAM_RELEASE_TAG" | tar -x -C /tmp/aerial-upstream
+
+          # These are fork-owned files; upstream releases must never overwrite them.
           rsync -a --delete \
             --exclude='/.git/' \
             --exclude='/README*' \
             --exclude='/mod/' \
             --exclude='/version.txt' \
             --exclude='/.github/workflows/' \
+            --exclude='/\.github/upstream-release.txt' \
             /tmp/aerial-upstream/ ./
 
+          mkdir -p .github
+          printf '%s\\n' "$UPSTREAM_RELEASE_TAG" > .github/upstream-release.txt
           git add -A
-          if ! git diff --cached --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "Sync upstream pengchujin/aerial-tv"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Upstream source is already synchronized."
-          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Sync upstream Release $UPSTREAM_RELEASE_TAG"
+          git push origin HEAD:main
 
       - name: Decide whether a build is needed
         id: build_gate
         shell: bash
         run: |
           set -euo pipefail
-          should_build=true
-          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${{ steps.sync_upstream.outputs.changed }}" != "true" ]]; then
-            should_build=false
-            echo "No upstream changes detected; skip build and release."
+          should_build=false
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_ACTOR" != "github-actions[bot]" ]]; then
+            should_build=true
+            echo "Fork commit detected; build this commit."
+          elif [[ "${{ steps.upstream_release.outputs.new_release }}" == "true" ]]; then
+            should_build=true
+            echo "New upstream Release detected; build the synchronized release."
+          else
+            echo "No qualifying fork commit or new upstream Release; skip build and publish."
           fi
           echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
 
