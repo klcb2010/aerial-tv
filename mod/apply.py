@@ -28,7 +28,7 @@ edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
     ('            read = { withContext(Dispatchers.IO) { read(VERSION_URL) } },', '            read = { withContext(Dispatchers.IO) { readLatestVersion() } },', "own release version reader"),
     ('    private fun read(url: String): String {', '    private fun readLatestVersion(): String {\n        val tag = JSONObject(read(VERSION_URL)).getString("tag_name")\n        return tag.removePrefix("upstream-").removePrefix("v")\n    }\n\n    private fun read(url: String): String {', "release tag parser"),
     ('            "https://github.com/pengchujin/aerial-tv/releases/latest/download/$name",', '            "https://github.com/klcb2010/aerial-tv/releases/latest/download/$name",', "own release APK URL"),
-    ('            "https://aerial.qust.me/download/$name",\\n', '', "remove official APK source"),
+    ('            "https://aerial.qust.me/download/$name",\n', '', "remove official APK source"),
 ])
 
 edit("app/src/main/java/app/orchard/tv/apps/Apps.kt", [
