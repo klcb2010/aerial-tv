@@ -215,8 +215,8 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
 
 # Expose a manual update check in the Settings sheet; automatic checks remain unchanged.
 edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
-    ('import app.orchard.tv.settings.AerialSettings\\n',
-     'import app.orchard.tv.settings.AerialSettings\\nimport app.orchard.tv.update.Updates\\n',
+    ('import app.orchard.tv.settings.AerialSettings\n',
+     'import app.orchard.tv.settings.AerialSettings\nimport app.orchard.tv.update.Updates\n',
      "manual update check import"),
     ("""                        AerialSettings.effects, AerialSettings::chooseEffects,
                     )
@@ -226,7 +226,7 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
      """                        AerialSettings.effects, AerialSettings::chooseEffects,
                     )
                     SettingRow(R.string.st_check_updates, stringResource(R.string.st_check_updates_hint), note) {
-                        ActionChip(stringResource(R.string.st_check_updates), Glyph.ChevronRight) {
+                        ActionChip(stringResource(R.string.st_check_updates_action), Glyph.ChevronRight) {
                             Updates.checkIfStale(force = true)
                         }
                     }
@@ -238,13 +238,13 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
 
 edit("app/src/main/res/values/strings.xml", [
     ('    <string name="st_effects_hint">Lite draws plain panels and the selected app without its sheen, and keeps the screen at 60 Hz: for TVs that stutter.</string>',
-     '    <string name="st_effects_hint">Lite draws plain panels and the selected app without its sheen, and keeps the screen at 60 Hz: for TVs that stutter.</string>\\n    <string name="st_check_updates">Check for Updates</string>\\n    <string name="st_check_updates_hint">Check now for a newer Aerial version instead of waiting for the automatic check.</string>',
+     '    <string name="st_effects_hint">Lite draws plain panels and the selected app without its sheen, and keeps the screen at 60 Hz: for TVs that stutter.</string>\n    <string name="st_check_updates">Updates</string>\n    <string name="st_check_updates_action">Check for Updates</string>\n    <string name="st_check_updates_hint">Check now for a newer Aerial version instead of waiting for the automatic check.</string>',
      "English manual update check strings"),
 ])
 
 edit("app/src/main/res/values-zh/strings.xml", [
     ('    <string name="st_effects_hint">流畅：面板用纯色，选中的 App 不加高光和视差，屏幕保持 60Hz，给会卡顿的电视用。</string>',
-     '    <string name="st_effects_hint">流畅：面板用纯色，选中的 App 不加高光和视差，屏幕保持 60Hz，给会卡顿的电视用。</string>\\n    <string name="st_check_updates">检查更新</string>\\n    <string name="st_check_updates_hint">立即检查是否有新版 Aerial，不必等待自动检测。</string>',
+     '    <string name="st_effects_hint">流畅：面板用纯色，选中的 App 不加高光和视差，屏幕保持 60Hz，给会卡顿的电视用。</string>\n    <string name="st_check_updates">软件更新</string>\n    <string name="st_check_updates_action">检查更新</string>\n    <string name="st_check_updates_hint">立即检查是否有新版 Aerial，不必等待自动检测。</string>',
      "Chinese manual update check strings"),
 ])
 
