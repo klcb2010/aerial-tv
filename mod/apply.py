@@ -320,3 +320,58 @@ edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
 ])
 
 print("[mod] all patches applied")
+
+
+# Give the manual update action visible progress and a useful final result.
+edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
+    ('    var automaticChecksEnabled by mutableStateOf(true); private set',
+     '    var automaticChecksEnabled by mutableStateOf(true); private set\n\n    enum class ManualCheckStatus { Idle, Checking, UpToDate, UpdateAvailable, Failed }\n    var manualCheckStatus by mutableStateOf(ManualCheckStatus.Idle); private set',
+     "manual update check status state"),
+    ('            enabled = { automaticChecksEnabled },',
+     '            enabled = { automaticChecksEnabled },\n            manualResult = { success ->\n                manualCheckStatus = if (!success) ManualCheckStatus.Failed\n                else if (available != null) ManualCheckStatus.UpdateAvailable\n                else ManualCheckStatus.UpToDate\n            },',
+     "manual update check result callback"),
+    ('        checker?.check(force || manual, maxAgeMs, networkCameUp, when {',
+     '        if (manual) manualCheckStatus = ManualCheckStatus.Checking\n        if (checker == null) {\n            if (manual) manualCheckStatus = ManualCheckStatus.Failed\n            return\n        }\n        checker?.check(force || manual, maxAgeMs, networkCameUp, when {',
+     "manual update check visible progress"),
+])
+
+edit("app/src/main/java/app/orchard/tv/update/UpdateCheck.kt", [
+    ('    private val enabled: () -> Boolean = { true },',
+     '    private val enabled: () -> Boolean = { true },\n    private val manualResult: (Boolean) -> Unit = {},',
+     "manual update result callback"),
+    ('                result = "success version=$latest"',
+     '                result = "success version=$latest"\n                if (source == "manual") manualResult(true)',
+     "manual update success callback"),
+    ('                else "failed ${e.javaClass.simpleName}" + (e.cause?.let { "/${it.javaClass.simpleName}" } ?: "")',
+     '                else "failed ${e.javaClass.simpleName}" + (e.cause?.let { "/${it.javaClass.simpleName}" } ?: "")\n                if (source == "manual") manualResult(false)',
+     "manual update failure callback"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
+    ("""                        ActionChip(stringResource(R.string.st_check_updates_action), Glyph.ChevronRight) {
+                            Updates.checkIfStale(force = true, manual = true)
+                        }""",
+     """                        val checkLabel = when (Updates.manualCheckStatus) {
+                            Updates.ManualCheckStatus.Idle -> R.string.st_check_updates_action
+                            Updates.ManualCheckStatus.Checking -> R.string.st_check_updates_checking
+                            Updates.ManualCheckStatus.UpToDate -> R.string.st_check_updates_latest
+                            Updates.ManualCheckStatus.UpdateAvailable -> R.string.st_check_updates_available
+                            Updates.ManualCheckStatus.Failed -> R.string.st_check_updates_failed
+                        }
+                        ActionChip(stringResource(checkLabel), Glyph.ChevronRight) {
+                            Updates.checkIfStale(force = true, manual = true)
+                        }""",
+     "manual update check result label"),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    ('    <string name="st_check_updates_action">Check for Updates</string>',
+     '    <string name="st_check_updates_action">Check for Updates</string>\n    <string name="st_check_updates_checking">Checking…</string>\n    <string name="st_check_updates_latest">Already up to date</string>\n    <string name="st_check_updates_available">Update available</string>\n    <string name="st_check_updates_failed">Check failed · Try again</string>',
+     "English manual update status strings"),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    ('    <string name="st_check_updates_action">检查更新</string>',
+     '    <string name="st_check_updates_action">检查更新</string>\n    <string name="st_check_updates_checking">正在检查…</string>\n    <string name="st_check_updates_latest">已经是最新版本</string>\n    <string name="st_check_updates_available">发现新版本</string>\n    <string name="st_check_updates_failed">检查失败，点击重试</string>',
+     "Chinese manual update status strings"),
+])
