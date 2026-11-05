@@ -71,12 +71,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Android SDK packages
+        shell: bash
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          set -euo pipefail
+          : "${ANDROID_HOME:?`ANDROID_HOME is not set on the GitHub runner`}"
+          yes | sdkmanager --licenses
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -96,7 +100,7 @@ jobs:
 
       - name: Check for a new upstream release
         id: upstream_release
-        if: ${{ github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
