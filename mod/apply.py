@@ -67,6 +67,12 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
      "hidden slots setting row"),
 ])
 
+edit("app/src/main/res/values/strings.xml", [
+    ('    <string name="st_peek">Second Row</string>',
+     '    <string name="st_hidden_slots">Keep First-Row Gaps</string>\n    <string name="st_hidden_slots_hint">When an app in the first row is hidden, leave its original position empty instead of pulling later apps forward.</string>\n    <string name="st_peek">Second Row</string>',
+     "default setting strings"),
+])
+
 edit("app/src/main/res/values-zh/strings.xml", [
     ('    <string name="st_peek">第二排</string>',
      '    <string name="st_hidden_slots">隐藏不补位</string>\n    <string name="st_hidden_slots_hint">隐藏第一排中的 App 后，原位置留空，后面的 App 不会顶上来，保持第一排整洁。</string>\n    <string name="st_peek">第二排</string>',
