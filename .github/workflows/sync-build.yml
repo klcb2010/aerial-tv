@@ -61,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
-          grep -q '隐藏不补位' app/src/main/res/values-zh/strings.xml
+          grep -q '移出不补位' app/src/main/res/values-zh/strings.xml
           grep -q 'emptySlot' app/src/main/java/app/orchard/tv/apps/Apps.kt
           grep -q 'hidden_slots' app/src/main/java/app/orchard/tv/settings/AerialSettings.kt
 
@@ -150,7 +150,7 @@ jobs:
               echo
               echo "$release_body"
               echo
-              echo "本构建额外注入了 mod/ 中的「隐藏不补位」功能。"
+              echo "本构建额外注入了 mod/ 中的「移出不补位」功能。"
               echo "AERIAL_RELEASE_BODY"
             } >> "$GITHUB_OUTPUT"
 
