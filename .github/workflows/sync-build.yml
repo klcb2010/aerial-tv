@@ -130,7 +130,8 @@ jobs:
           release_name="$(jq -r .name // .tag_name <<<"$release")"
           release_body="$(jq -r .body // "" <<<"$release")"
           tag="upstream-${upstream_tag}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+          # Check the GitHub Release itself, not merely whether a Git tag exists.
+          if gh release view "$tag" >/dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
