@@ -151,12 +151,15 @@ jobs:
 
       - name: Verify APK signatures
         shell: bash
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.AERIAL_SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.AERIAL_SIGNING_KEY_ALIAS }}
         run: |
           set -euo pipefail
           APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           test -x "$APKSIGNER" || { echo "apksigner not found: $APKSIGNER"; exit 1; }
 
-          expected="$(keytool -list -v -keystore local/signing.keystore -alias "${{ secrets.AERIAL_SIGNING_KEY_ALIAS }}" -storepass "${{ secrets.AERIAL_SIGNING_STORE_PASSWORD }}" 2>/dev/null | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
+          expected="$(keytool -list -v -keystore local/signing.keystore -alias "$SIGNING_KEY_ALIAS" -storepass "$SIGNING_STORE_PASSWORD" 2>/dev/null | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
           test -n "$expected" || { echo "Could not read signing certificate fingerprint."; exit 1; }
 
           for apk in \\
