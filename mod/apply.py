@@ -173,8 +173,8 @@ edit("app/src/main/res/values/strings.xml", [
     ('    <string name="menu_move">Move</string>',
      '    <string name="menu_move">Move</string>\n    <string name="menu_move_out_first_row">Move out of first row</string>',
      "English move-out menu label"),
-    ('    <string name="st_plate">First-row plate</string>',
-     '    <string name="st_plate">First-row plate</string>\n    <string name="st_plate_opacity">First-row plate opacity</string>\n    <string name="st_plate_opacity_hint">Left/right adjusts the glass opacity in 5% steps. Press Back to save.</string>',
+    ('    <string name="st_plate">Top Row</string>',
+     '    <string name="st_plate">Top Row</string>\n    <string name="st_plate_opacity">First-row plate opacity</string>\n    <string name="st_plate_opacity_hint">Left/right adjusts the glass opacity in 5% steps. Press Back to save.</string>',
      "English plate opacity setting strings"),
 ])
 
