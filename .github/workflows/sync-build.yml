@@ -41,6 +41,7 @@ jobs:
             --exclude='/.git/' \
             --exclude='/README*' \
             --exclude='/mod/' \
+            --exclude='/version.txt' \
             --exclude='/.github/workflows/' \
             /tmp/aerial-upstream/ ./
 
