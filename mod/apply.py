@@ -46,6 +46,9 @@ edit("lite/src/main/java/app/orchard/tv/lite/Apps.kt", [
 ])
 
 edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
+    ('const val FOLDER_KEY_PREFIX = "folder:"',
+     'const val FOLDER_KEY_PREFIX = "folder:"\nprivate const val FIRST_ROW_GAP_PREFIX = "first-row-gap:"',
+     "first-row gap key"),
     ('class Arrangement(val home: List<AppEntry>, val folders: Map<String, List<AppEntry>>, val hidden: List<AppEntry>)',
      'class Arrangement(\n    val home: List<AppEntry>,\n    val folders: Map<String, List<AppEntry>>,\n    val hidden: List<AppEntry>,\n    /** Home order with optional empty slots retained in the first row. */\n    val homeSlots: List<AppEntry> = home,\n)',
      "Arrangement homeSlots field"),
@@ -53,13 +56,13 @@ edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
      '    fun arrange(\n        all: List<AppEntry>,\n        preserveHiddenSlots: Int = 0,\n        folderTile: (Folder, List<AppEntry>) -> AppEntry,\n    ): Arrangement {',
      "arrange signature"),
     ('        val home = order.mapNotNull { key ->\n            val folder = folderOf(key)\n            if (folder != null) contents[folder.id]?.takeIf { it.isNotEmpty() }?.let { folderTile(folder, it) }\n            else byKey[key]?.takeIf { key !in hidden }\n        }\n        val inAnyOrder = order + folders.values.flatMap { it.apps }\n        return Arrangement(home, contents, inAnyOrder.mapNotNull(byKey::get).filter { it.key in hidden })',
-     '        val home = mutableListOf<AppEntry>()\n        val homeSlots = mutableListOf<AppEntry>()\n        for (key in order) {\n            val folder = folderOf(key)\n            val tile = if (folder != null) {\n                contents[folder.id]?.takeIf { it.isNotEmpty() }?.let { folderTile(folder, it) }\n            } else {\n                byKey[key]?.takeIf { key !in hidden }\n            }\n            if (tile != null) {\n                home += tile\n                homeSlots += tile\n            } else if (homeSlots.size < preserveHiddenSlots && key in hidden) {\n                // Keep only hidden apps that originally occupied a first-row position. Later\n                // rows continue to compact normally; the blank tile has no focus or click target.\n                byKey[key]?.let { hiddenApp ->\n                    homeSlots += hiddenApp.copy(\n                        packageName = "hidden-slot:${homeSlots.size}",\n                        label = "",\n                        emptySlot = true,\n                    )\n                }\n            }\n        }\n        val inAnyOrder = order + folders.values.flatMap { it.apps }\n        return Arrangement(home, contents, inAnyOrder.mapNotNull(byKey::get).filter { it.key in hidden }, homeSlots)',
+     '        val home = mutableListOf<AppEntry>()\n        val homeSlots = mutableListOf<AppEntry>()\n        for (key in order) {\n            if (key.startsWith(FIRST_ROW_GAP_PREFIX)) {\n                if (homeSlots.size < preserveHiddenSlots) {\n                    byKey[key.removePrefix(FIRST_ROW_GAP_PREFIX)]?.let { movedApp ->\n                        homeSlots += movedApp.copy(\n                            packageName = "hidden-slot:${homeSlots.size}",\n                            label = "",\n                            emptySlot = true,\n                        )\n                    }\n                }\n                continue\n            }\n            val folder = folderOf(key)\n            val tile = if (folder != null) {\n                contents[folder.id]?.takeIf { it.isNotEmpty() }?.let { folderTile(folder, it) }\n            } else {\n                byKey[key]?.takeIf { key !in hidden }\n            }\n            if (tile != null) {\n                home += tile\n                homeSlots += tile\n            } else if (homeSlots.size < preserveHiddenSlots && key in hidden) {\n                // Keep only hidden apps that originally occupied a first-row position. Later\n                // rows continue to compact normally; the blank tile has no focus or click target.\n                byKey[key]?.let { hiddenApp ->\n                    homeSlots += hiddenApp.copy(\n                        packageName = "hidden-slot:${homeSlots.size}",\n                        label = "",\n                        emptySlot = true,\n                    )\n                }\n            }\n        }\n        val inAnyOrder = order + folders.values.flatMap { it.apps }\n        return Arrangement(home, contents, inAnyOrder.mapNotNull(byKey::get).filter { it.key in hidden }, homeSlots)',
      "arrangement home loop"),
 ])
 
 edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
     ('        val arrangement = store.arrange(named + pinned) { folder, inside ->',
-     '        val arrangement = store.arrange(\n            named + pinned,\n            preserveHiddenSlots = if (AerialSettings.hiddenSlots) AerialSettings.homeColumns else 0,\n        ) { folder, inside ->',
+     '        val arrangement = store.arrange(\n            named + pinned,\n            preserveHiddenSlots = if (AerialSettings.noFillFirstRow) AerialSettings.homeColumns else 0,\n        ) { folder, inside ->',
      "arrange call"),
     ('            else -> AerialSettings.previewApps.takeIf { it > 0 }?.let { arrangement.home.take(it) } ?: arrangement.home',
      '            else -> AerialSettings.previewApps.takeIf { it > 0 }?.let { arrangement.homeSlots.take(it) } ?: arrangement.homeSlots',
@@ -68,31 +71,31 @@ edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
 
 edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
     ('    var peekNextRow by mutableStateOf(true); private set',
-     '    var peekNextRow by mutableStateOf(true); private set\n\n    /** Keep hidden apps in the first row as empty slots instead of pulling later apps forward. */\n    var hiddenSlots by mutableStateOf(false); private set',
-     "hiddenSlots property"),
+     '    var peekNextRow by mutableStateOf(true); private set\n\n    /** Keep hidden apps in the first row as empty slots instead of pulling later apps forward. */\n    var noFillFirstRow by mutableStateOf(false); private set',
+     "noFillFirstRow property"),
     ('        peekNextRow = prefs.getBoolean("peek_next_row", true)',
-     '        peekNextRow = prefs.getBoolean("peek_next_row", true)\n        hiddenSlots = prefs.getBoolean("hidden_slots", false)',
-     "hiddenSlots preference load"),
+     '        peekNextRow = prefs.getBoolean("peek_next_row", true)\n        noFillFirstRow = prefs.getBoolean("no_fill_first_row", prefs.getBoolean("hidden_slots", false))',
+     "noFillFirstRow preference load"),
     ('    fun choosePeekNextRow(on: Boolean) {\n        peekNextRow = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("peek_next_row", on) }\n    }',
-     '    fun choosePeekNextRow(on: Boolean) {\n        peekNextRow = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("peek_next_row", on) }\n    }\n\n    fun chooseHiddenSlots(on: Boolean) {\n        hiddenSlots = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("hidden_slots", on) }\n    }',
-     "hiddenSlots setter"),
+     '    fun choosePeekNextRow(on: Boolean) {\n        peekNextRow = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("peek_next_row", on) }\n    }\n\n    fun chooseNoFillFirstRow(on: Boolean) {\n        noFillFirstRow = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("no_fill_first_row", on) }\n    }',
+     "noFillFirstRow setter"),
 ])
 
 edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
     ('                    if (AerialSettings.oneRowHome) Choices(\n                        R.string.st_peek, stringResource(R.string.st_peek_hint), note,\n                        listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),\n                        AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,\n                    )',
-     '                    if (AerialSettings.oneRowHome) Choices(\n                        R.string.st_peek, stringResource(R.string.st_peek_hint), note,\n                        listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),\n                        AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,\n                    )\n                    Choices(\n                        R.string.st_hidden_slots, stringResource(R.string.st_hidden_slots_hint), note,\n                        listOf(false to R.string.st_off, true to R.string.st_on),\n                        AerialSettings.hiddenSlots, AerialSettings::chooseHiddenSlots,\n                    )',
+     '                    if (AerialSettings.oneRowHome) Choices(\n                        R.string.st_peek, stringResource(R.string.st_peek_hint), note,\n                        listOf(true to R.string.st_peek_show, false to R.string.st_peek_hide),\n                        AerialSettings.peekNextRow, AerialSettings::choosePeekNextRow,\n                    )\n                    Choices(\n                        R.string.st_hidden_slots, stringResource(R.string.st_hidden_slots_hint), note,\n                        listOf(false to R.string.st_off, true to R.string.st_on),\n                        AerialSettings.noFillFirstRow, AerialSettings::chooseNoFillFirstRow,\n                    )',
      "hidden slots setting row"),
 ])
 
 edit("app/src/main/res/values/strings.xml", [
     ('    <string name="st_peek">Second Row</string>',
-     '    <string name="st_hidden_slots">Keep First-Row Gaps</string>\n    <string name="st_hidden_slots_hint">When an app in the first row is hidden, leave its original position empty instead of pulling later apps forward.</string>\n    <string name="st_peek">Second Row</string>',
+     '    <string name="st_hidden_slots">Do Not Fill First-Row Gaps</string>\n    <string name="st_hidden_slots_hint">When an app in the first row is hidden or moved out, leave its original position empty instead of pulling later apps forward.</string>\n    <string name="st_peek">Second Row</string>',
      "default setting strings"),
 ])
 
 edit("app/src/main/res/values-zh/strings.xml", [
     ('    <string name="st_peek">第二排</string>',
-     '    <string name="st_hidden_slots">隐藏不补位</string>\n    <string name="st_hidden_slots_hint">隐藏第一排中的 App 后，原位置留空，后面的 App 不会顶上来，保持第一排整洁。</string>\n    <string name="st_peek">第二排</string>',
+     '    <string name="st_hidden_slots">移出不补位</string>\n    <string name="st_hidden_slots_hint">隐藏第一排 App 或将其移出第一排后，原位置留空，后面的 App 不会顶上来。</string>\n    <string name="st_peek">第二排</string>',
      "Chinese setting strings"),
 ])
 
@@ -103,7 +106,7 @@ edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
 ])
 edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
     ('        viewModelScope.launch { snapshotFlow { AerialSettings.previewApps }.drop(1).collect { if (loaded) arrange() } }',
-     '        viewModelScope.launch { snapshotFlow { AerialSettings.previewApps }.drop(1).collect { if (loaded) arrange() } }\n        viewModelScope.launch { snapshotFlow { AerialSettings.hiddenSlots }.drop(1).collect { if (loaded) arrange() } }',
+     '        viewModelScope.launch { snapshotFlow { AerialSettings.previewApps }.drop(1).collect { if (loaded) arrange() } }\n        viewModelScope.launch { snapshotFlow { AerialSettings.noFillFirstRow }.drop(1).collect { if (loaded) arrange() } }',
      "hidden slots live refresh"),
 ])
 
@@ -111,13 +114,13 @@ edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
 # One-tap placement below the first row, plus a saved opacity control for its glass plate.
 edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
     ('    private fun arrange() {',
-     '    /** Puts a first-row app or folder at the start of the second row in one step. */\n    fun moveOutOfFirstRow(key: String) {\n        val from = apps.indexOfFirst { it.key == key }\n        val columns = AerialSettings.homeColumns\n        if (from !in 0 until columns || apps.size <= columns) return\n        store.move(key, apps[columns].key)\n        arrange()\n    }\n\n    private fun arrange() {',
+     '    /** Puts a first-row app or folder at the start of the second row in one step. */\n    fun moveOutOfFirstRow(key: String) {\n        val from = apps.indexOfFirst { it.key == key }\n        val columns = AerialSettings.homeColumns\n        if (from !in 0 until columns || apps.size <= columns) return\n        store.moveOutOfFirstRow(key, apps[columns].key)\n        arrange()\n    }\n\n    private fun arrange() {',
      "move out of first row"),
 ])
 
 edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
     ('            onMove = { vm.startMove(it) },',
-     '            onMove = { vm.startMove(it) },\n            canMoveOutOfFirstRow = menu?.let { m ->\n                vm.apps.indexOfFirst { it.key == m.key } in 0 until columns && vm.apps.size > columns\n            } == true,\n            onMoveOutOfFirstRow = { key ->\n                closeMenu()\n                vm.moveOutOfFirstRow(key)\n            },',
+     '            onMove = { vm.startMove(it) },\n            canMoveOutOfFirstRow = menu?.let { m ->\n                vm.apps.indexOfFirst { it.key == m.key } in 0 until columns && vm.apps.size > columns\n            } == true,\n            onMoveOutOfFirstRow = { key ->\n                val index = vm.apps.indexOfFirst { it.key == key }\n                val neighbor = if (index % columns == columns - 1) index - 1 else index + 1\n                focusAfterOverlay = vm.apps.getOrNull(neighbor)?.key ?: vm.apps.getOrNull(index - 1)?.key\n                closeMenu()\n                vm.moveOutOfFirstRow(key)\n            },',
      "one-tap second-row menu callbacks"),
 ])
 
@@ -303,6 +306,17 @@ edit("app/src/main/res/values-zh/strings.xml", [
     ('    <string name="st_check_updates">软件更新</string>',
      '    <string name="st_auto_updates">自动检测更新</string>\n    <string name="st_auto_updates_hint">沿用 Aerial 原有的主页、网络恢复和失败重试检测机制。关闭后仍可手动检查更新。</string>\n    <string name="st_check_updates">软件更新</string>',
      "Chinese automatic update setting strings"),
+])
+
+
+# A one-tap move leaves a durable first-row gap when the setting is enabled.
+edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
+    ('        val list = order.toMutableList()\\n        val from = list.indexOf(key)\\n        val to = list.indexOf(target)',
+     '        val list = order.toMutableList()\\n        list.remove(FIRST_ROW_GAP_PREFIX + key)\\n        val from = list.indexOf(key)\\n        val to = list.indexOf(target)',
+     "manual move clears old first-row gap"),
+    ('    private fun save() = prefs.edit {',
+     '    /** Moves an app below the first row while retaining its old slot as a non-interactive gap. */\\n    fun moveOutOfFirstRow(key: String, target: String) {\\n        if (key == target) return\\n        val list = order.toMutableList()\\n        val from = list.indexOf(key)\\n        val to = list.indexOf(target)\\n        if (from < 0 || to < 0 || from >= to) return\\n        list[from] = FIRST_ROW_GAP_PREFIX + key\\n        val targetIndex = list.indexOf(target)\\n        list.add(targetIndex + 1, key)\\n        order = list\\n        save()\\n    }\\n\\n    private fun save() = prefs.edit {',
+     "move out with reserved first-row slot"),
 ])
 
 print("[mod] all patches applied")
