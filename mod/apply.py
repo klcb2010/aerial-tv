@@ -248,4 +248,61 @@ edit("app/src/main/res/values-zh/strings.xml", [
      "Chinese manual update check strings"),
 ])
 
+
+# Automatic update checks can be disabled without changing the updater's cadence,
+# retry policy, or the explicit Check for Updates action.
+edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
+    ('    var install by mutableStateOf<Install>(Install.Idle); private set',
+     '    var install by mutableStateOf<Install>(Install.Idle); private set\n\n    /** Automatic background checks are enabled by default; manual checks always remain available. */\n    var automaticChecksEnabled by mutableStateOf(true); private set',
+     "automatic update check state"),
+    ('        prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)',
+     '        prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)\n        automaticChecksEnabled = prefs.getBoolean("automatic_checks", true)',
+     "automatic update check preference load"),
+    ('            log = { Log.i(TAG, it); DiagLog.i("update check: $it") },',
+     '            log = { Log.i(TAG, it); DiagLog.i("update check: $it") },\n            enabled = { automaticChecksEnabled },',
+     "automatic update check gate"),
+    ('            else -> "home"\n        })',
+     '            manual -> "manual"\n            else -> "home"\n        })',
+     "manual update check source"),
+    ('        networkCameUp: Boolean = false,\n    ) {\n        checker?.check(force, maxAgeMs, networkCameUp, when {',
+     '        networkCameUp: Boolean = false,\n        manual: Boolean = false,\n    ) {\n        checker?.check(force || manual, maxAgeMs, networkCameUp, when {',
+     "manual update check bypass"),
+    ('    fun diagnostics(): String = if (!started) "not initialized" else',
+     '    fun chooseAutomaticChecks(enabled: Boolean) {\n        automaticChecksEnabled = enabled\n        if (started) prefs.edit { putBoolean("automatic_checks", enabled) }\n        if (enabled) checkIfStale()\n    }\n\n    fun diagnostics(): String = if (!started) "not initialized" else',
+     "automatic update check setter"),
+])
+
+edit("app/src/main/java/app/orchard/tv/update/UpdateCheck.kt", [
+    ('    private val log: (String) -> Unit,',
+     '    private val log: (String) -> Unit,\n    private val enabled: () -> Boolean = { true },',
+     "automatic update check predicate"),
+    ('    ) {\n        if (checking) {',
+     '    ) {\n        if (!enabled() && source != "manual") {\n            record("$source skipped: automatic checks disabled")\n            return\n        }\n        if (checking) {',
+     "automatic update check suppression"),
+    ('        val due = retryAt ?: return\n        if (active && !checking)',
+     '        if (!enabled()) return\n        val due = retryAt ?: return\n        if (active && !checking)',
+     "disable automatic retry scheduling"),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
+    ('                    SettingRow(R.string.st_check_updates, stringResource(R.string.st_check_updates_hint), note) {',
+     '                    Choices(\n                        R.string.st_auto_updates, stringResource(R.string.st_auto_updates_hint), note,\n                        listOf(true to R.string.st_on, false to R.string.st_off),\n                        Updates.automaticChecksEnabled, Updates::chooseAutomaticChecks,\n                    )\n                    SettingRow(R.string.st_check_updates, stringResource(R.string.st_check_updates_hint), note) {',
+     "automatic update check setting row"),
+    ('                            Updates.checkIfStale(force = true)',
+     '                            Updates.checkIfStale(force = true, manual = true)',
+     "manual check bypasses automatic setting"),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    ('    <string name="st_check_updates">Updates</string>',
+     '    <string name="st_auto_updates">Automatic update checks</string>\n    <string name="st_auto_updates_hint">Check for updates automatically using Aerial’s normal Home, network and retry schedule. Manual checks remain available when this is off.</string>\n    <string name="st_check_updates">Updates</string>',
+     "English automatic update setting strings"),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    ('    <string name="st_check_updates">软件更新</string>',
+     '    <string name="st_auto_updates">自动检测更新</string>\n    <string name="st_auto_updates_hint">沿用 Aerial 原有的主页、网络恢复和失败重试检测机制。关闭后仍可手动检查更新。</string>\n    <string name="st_check_updates">软件更新</string>',
+     "Chinese automatic update setting strings"),
+])
+
 print("[mod] all patches applied")
