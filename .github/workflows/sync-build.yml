@@ -125,10 +125,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Parse with Python's standard JSON library instead of relying on jq.
           release="$(gh api repos/pengchujin/aerial-tv/releases/latest)"
-          upstream_tag="$(jq -r .tag_name <<<"$release")"
-          release_name="$(jq -r .name // .tag_name <<<"$release")"
-          release_body="$(jq -r .body // "" <<<"$release")"
+          mapfile -t release_fields < <(python3 -c '
+          import json, sys
+          r = json.load(sys.stdin)
+          print(r.get("tag_name") or "")
+          print(r.get("name") or r.get("tag_name") or "")
+          print(r.get("body") or "")
+          ' <<<"$release")
+          upstream_tag="\${release_fields[0]:-}"
+          release_name="\${release_fields[1]:-}"
+          release_body="\${release_fields[2]:-}"
+          test -n "$upstream_tag" || { echo "Upstream release has no tag_name"; exit 1; }
           tag="upstream-${upstream_tag}"
           # Check the GitHub Release itself, not merely whether a Git tag exists.
           if gh release view "$tag" >/dev/null 2>&1; then
@@ -148,6 +157,13 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Prepare APKs for in-app updates
+        if: \${{ steps.upstream_release.outputs.publish == 'true' }}
+        run: |
+          set -euo pipefail
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk aerial-standard.apk
+          cp app/build/outputs/apk/guard/release/app-guard-release.apk aerial-guard.apk
+
       - name: Publish APKs for a new upstream release
         if: ${{ steps.upstream_release.outputs.publish == 'true' }}
         uses: softprops/action-gh-release@v2
@@ -157,6 +173,6 @@ jobs:
           name: Aerial ${{ steps.upstream_release.outputs.name }} · klcb2010
           body: ${{ steps.upstream_release.outputs.body }}
           files: |
-            app/build/outputs/apk/standard/release/*.apk
-            app/build/outputs/apk/guard/release/*.apk
+            aerial-standard.apk
+            aerial-guard.apk
           make_latest: true
