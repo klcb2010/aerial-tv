@@ -12,9 +12,9 @@ def edit(path, replacements):
     file = ROOT / path
     text = file.read_text(encoding="utf-8")
     for old, new, label in replacements:
-        count = text.count(old)
-        if count == 0 and new in text:
+        if new in text:
             continue
+        count = text.count(old)
         if count != 1:
             raise SystemExit(f"[mod] {path}: expected one {label} anchor, found {count}")
         text = text.replace(old, new, 1)
@@ -615,17 +615,9 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
      "automatic update dialog composable"),
 ])
 
-edit("app/src/main/res/values/strings.xml", [
-    ('    <string name="st_check_updates_available">Update available</string>',
-     '    <string name="st_check_updates_available">Update available</string>\n    <string name="update_prompt_title">A new version is available</string>\n    <string name="update_prompt_version">Aerial %1$s is ready to install.</string>\n    <string name="update_prompt_message">Would you like to open the update page now?</string>\n    <string name="update_prompt_now">Update now</string>\n    <string name="update_prompt_later">Later</string>',
-     "English automatic update prompt strings"),
-])
 
-edit("app/src/main/res/values-zh/strings.xml", [
-    ('    <string name="st_check_updates_available">发现新版本</string>',
-     '    <string name="st_check_updates_available">发现新版本</string>\n    <string name="update_prompt_title">发现新版本</string>\n    <string name="update_prompt_version">Aerial %1$s 已经可以更新。</string>\n    <string name="update_prompt_message">现在打开更新页面吗？</string>\n    <string name="update_prompt_now">立即更新</string>\n    <string name="update_prompt_later">稍后</string>',
-     "Chinese automatic update prompt strings"),
-])
+
+
 
 
 # Prefer the fork's lightweight version.txt endpoint; fall back to the Releases API.
@@ -704,17 +696,9 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
      "automatic update dialog composable"),
 ])
 
-edit("app/src/main/res/values/strings.xml", [
-    ('    <string name="st_check_updates_available">Update available</string>',
-     '    <string name="st_check_updates_available">Update available</string>\n    <string name="update_prompt_title">A new version is available</string>\n    <string name="update_prompt_version">Aerial %1$s is ready to install.</string>\n    <string name="update_prompt_message">Would you like to open the update page now?</string>\n    <string name="update_prompt_now">Update now</string>\n    <string name="update_prompt_later">Later</string>',
-     "English automatic update prompt strings"),
-])
 
-edit("app/src/main/res/values-zh/strings.xml", [
-    ('    <string name="st_check_updates_available">发现新版本</string>',
-     '    <string name="st_check_updates_available">发现新版本</string>\n    <string name="update_prompt_title">发现新版本</string>\n    <string name="update_prompt_version">Aerial %1$s 已经可以更新。</string>\n    <string name="update_prompt_message">现在打开更新页面吗？</string>\n    <string name="update_prompt_now">立即更新</string>\n    <string name="update_prompt_later">稍后</string>',
-     "Chinese automatic update prompt strings"),
-])
+
+
 
 
 # Prefer the fork's lightweight version.txt endpoint; fall back to the Releases API.
@@ -757,3 +741,29 @@ edit("app/src/main/res/values/strings.xml", [
      '<string name="st_check_updates_hint">Manually check whether a newer Aerial version is available.</string>',
      "clarify manual update check setting"),
 ])
+
+# Fail early if an injected update-prompt resource is duplicated.
+import xml.etree.ElementTree as ET
+
+for resource_path in (
+    "app/src/main/res/values/strings.xml",
+    "app/src/main/res/values-zh/strings.xml",
+):
+    resource_file = ROOT / resource_path
+    resource_root = ET.parse(resource_file).getroot()
+    for resource_name in (
+        "update_prompt_title",
+        "update_prompt_version",
+        "update_prompt_message",
+        "update_prompt_now",
+        "update_prompt_later",
+    ):
+        matches = [
+            item for item in resource_root
+            if item.attrib.get("name") == resource_name
+        ]
+        if len(matches) != 1:
+            raise SystemExit(
+                f"[mod] {resource_path}: expected one {resource_name}, found {len(matches)}"
+            )
+print("[mod] update prompt resources verified")
