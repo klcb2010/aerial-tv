@@ -96,7 +96,9 @@ jobs:
 
       - name: Apply protected mod injection
         if: ${{ steps.build_gate.outputs.should_build == 'true' }}
-        run: python3 mod/apply.py
+        run: |
+           python3 -m py_compile mod/apply.py
+           python3 mod/apply.py
 
       - name: Verify patch and whitespace
         if: ${{ steps.build_gate.outputs.should_build == 'true' }}
@@ -155,7 +157,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="1.85.${GITHUB_RUN_NUMBER}"
+          # Read the upstream version preserved by mod/apply.py.
+          base_version="$(sed -nE 's/^[[:space:]]*versionName = providers\.gradleProperty\("aerialVersionName"\)\.orNull ?: "([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)"
+          if [[ -z "$base_version" ]]; then
+            echo "Could not determine upstream versionName from app/build.gradle.kts"
+            exit 1
+          fi
+          version="${base_version}.${GITHUB_RUN_NUMBER}"
           code=$((100000 + GITHUB_RUN_NUMBER))
           echo "name=$version" >> "$GITHUB_OUTPUT"
           echo "code=$code" >> "$GITHUB_OUTPUT"
