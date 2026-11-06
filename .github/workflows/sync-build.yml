@@ -94,6 +94,25 @@ jobs:
           fi
           echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
 
+      - name: Set fork release version
+        if: ${{ github.ref == 'refs/heads/main' && steps.build_gate.outputs.should_build == 'true' }}
+        id: fork_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Read the literal upstream version before mod/apply.py rewrites it.
+          base_version="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)"
+          if [[ -z "$base_version" ]]; then
+            echo "Could not determine upstream versionName from app/build.gradle.kts"
+            exit 1
+          fi
+          version="${base_version}.${GITHUB_RUN_NUMBER}"
+          code=$((100000 + GITHUB_RUN_NUMBER))
+          echo "name=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Building fork release $version (versionCode $code)"
+
+
       - name: Apply protected mod injection
         if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         run: |
@@ -150,24 +169,6 @@ jobs:
       - name: Set up Gradle
         if: ${{ steps.build_gate.outputs.should_build == 'true' }}
         uses: gradle/actions/setup-gradle@v4
-
-      - name: Set fork release version
-        if: ${{ github.ref == 'refs/heads/main' && steps.build_gate.outputs.should_build == 'true' }}
-        id: fork_version
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Read the upstream version preserved by mod/apply.py.
-          base_version="$(sed -nE 's/^[[:space:]]*versionName = providers\.gradleProperty\("aerialVersionName"\)\.orNull ?: "([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)"
-          if [[ -z "$base_version" ]]; then
-            echo "Could not determine upstream versionName from app/build.gradle.kts"
-            exit 1
-          fi
-          version="${base_version}.${GITHUB_RUN_NUMBER}"
-          code=$((100000 + GITHUB_RUN_NUMBER))
-          echo "name=$version" >> "$GITHUB_OUTPUT"
-          echo "code=$code" >> "$GITHUB_OUTPUT"
-          echo "Building fork release $version (versionCode $code)"
 
       - name: Restore fixed APK signing key
         if: ${{ steps.build_gate.outputs.should_build == 'true' }}
