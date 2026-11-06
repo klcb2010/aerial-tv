@@ -457,6 +457,7 @@ def patch_release_versions():
                 continue
             current = stripped[len(prefix):]
             if gradle_property in current:
+                matches.append((index, None))
                 continue
             if is_string:
                 if len(current) >= 2 and current.startswith('"') and current.endswith('"') and current.count('"') == 2:
@@ -468,6 +469,8 @@ def patch_release_versions():
                 f"[mod] {path}: expected one {property_name} assignment, found {len(matches)}"
             )
         index, fallback = matches[0]
+        if fallback is None:
+            return
         indent = lines[index][:len(lines[index]) - len(lines[index].lstrip())]
         if is_string:
             lines[index] = (
