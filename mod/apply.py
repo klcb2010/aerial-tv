@@ -579,16 +579,7 @@ edit("app/src/main/res/values/strings.xml", [
      '<string name="st_check_updates_hint">Manually check whether a newer Aerial version is available.</string>',
      "clarify manual update check setting"),
 ])
-,
-            lambda match: (
-                f'{match.group("indent")}versionCode = '
-                f'providers.gradleProperty("aerialVersionCode").orNull?.toInt() ?: {match.group("value")}'
-            ),
-            "fork release version code",
-            'providers.gradleProperty("aerialVersionCode")',
-        ),
-        (
-            r'(?m)^(?P<indent>[ \\t]*)versionName\\s*=\\s*"(?P<value>[^"]+)"\\s*
+
 # All in-app update metadata and APKs must come from klcb2010/aerial-tv, never upstream.
 # Update endpoints and APK sources are handled by the initial Updates.kt patch above.\n
 
@@ -677,29 +668,6 @@ edit("app/src/main/res/values/strings.xml", [
      '<string name="st_check_updates_hint">Manually check whether a newer Aerial version is available.</string>',
      "clarify manual update check setting"),
 ])
-,
-            lambda match: (
-                f'{match.group("indent")}versionName = '
-                f'providers.gradleProperty("aerialVersionName").orNull ?: "{match.group("value")}"'
-            ),
-            "fork release version name",
-            'providers.gradleProperty("aerialVersionName")',
-        ),
-    ]
-
-    for pattern, replacement, label, already_patched in replacements:
-        if already_patched in text:
-            continue
-        matches = list(re.finditer(pattern, text))
-        if len(matches) != 1:
-            raise SystemExit(f"[mod] {path}: expected one {label} assignment, found {len(matches)}")
-        text = re.sub(pattern, replacement, text, count=1)
-
-    file.write_text(text, encoding="utf-8")
-    print(f"[mod] patched {path}")
-
-
-patch_release_versions()
 
 # All in-app update metadata and APKs must come from klcb2010/aerial-tv, never upstream.
 # Update endpoints and APK sources are handled by the initial Updates.kt patch above.\n
