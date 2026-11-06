@@ -484,7 +484,7 @@ def patch_release_versions():
             )
 
     patch_assignment("versionCode", "aerialVersionCode")
-    patch_assignment("versionName", "aerialVersionName")
+    patch_assignment("versionName", "aerialVersionName", is_string=True)
     file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"[mod] patched {path}")
 
