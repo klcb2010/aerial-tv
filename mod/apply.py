@@ -5,7 +5,6 @@ The patch is intentionally strict: if upstream moves the integration points, fai
 build instead of silently producing an APK without the requested behavior.
 """
 from pathlib import Path
-import re
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -442,16 +441,53 @@ edit("app/src/main/res/values-zh/strings.xml", [
 
 
 # Use this fork's own monotonically increasing release version for every CI build.
-# Upstream changes versionCode/versionName between releases, so match the Kotlin DSL
-# assignments structurally and preserve the current upstream values as local fallbacks.
+# Upstream may change its literal version values between releases. Match the assignments
+# by their Kotlin DSL property names and retain the current upstream values as fallbacks.
 def patch_release_versions():
     path = "app/build.gradle.kts"
     file = ROOT / path
-    text = file.read_text(encoding="utf-8")
+    lines = file.read_text(encoding="utf-8").splitlines()
 
-    replacements = [
-        (
-            r'(?m)^(?P<indent>[ \\t]*)versionCode\\s*=\\s*(?P<value>\\d+)\\s*
+    def patch_assignment(property_name, gradle_property, is_string=False):
+        matches = []
+        for index, line in enumerate(lines):
+            stripped = line.strip()
+            prefix = property_name + " = "
+            if not stripped.startswith(prefix):
+                continue
+            current = stripped[len(prefix):]
+            if gradle_property in current:
+                continue
+            if is_string:
+                if len(current) >= 2 and current.startswith('"') and current.endswith('"') and current.count('"') == 2:
+                    matches.append((index, current[1:-1]))
+            elif current.isdigit():
+                matches.append((index, current))
+        if len(matches) != 1:
+            raise SystemExit(
+                f"[mod] {path}: expected one {property_name} assignment, found {len(matches)}"
+            )
+        index, fallback = matches[0]
+        indent = lines[index][:len(lines[index]) - len(lines[index].lstrip())]
+        if is_string:
+            lines[index] = (
+                f'{indent}{property_name} = '
+                f'providers.gradleProperty("{gradle_property}").orNull ?: "{fallback}"'
+            )
+        else:
+            lines[index] = (
+                f'{indent}{property_name} = '
+                f'providers.gradleProperty("{gradle_property}").orNull?.toInt() ?: {fallback}'
+            )
+
+    patch_assignment("versionCode", "aerialVersionCode")
+    patch_assignment("versionName", "aerialVersionName")
+    file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"[mod] patched {path}")
+
+
+patch_release_versions()
+
 # All in-app update metadata and APKs must come from klcb2010/aerial-tv, never upstream.
 # Update endpoints and APK sources are handled by the initial Updates.kt patch above.\n
 
