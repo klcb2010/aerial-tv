@@ -606,9 +606,18 @@ object SystemProbe {
                 .putExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_TV_INPUT))
             if (runCatching { context.startService(key) }.getOrNull() != null) return true
         }
+        // MStar's own TV player keeps a source panel behind a custom action, on firmware that
+        // registers no inputs with Android (Sharp LCD_xxSFFOC470A, MStar mooney, Android 6: the
+        // reporter opened it with adb, issue #1342). Only an exported one, as `am start` was, and
+        // after every other panel, so no TV that opened one of those changes.
+        val mstar = Intent(MSTAR_SOURCE_INFO).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { pm.resolveActivity(mstar, 0)?.activityInfo }.getOrNull()?.exported == true &&
+            runCatching { context.startActivity(mstar) }.isSuccess
+        ) return true
         return false
     }
 
+    private const val MSTAR_SOURCE_INFO = "com.mstar.tv.tvplayer.ui.intent.action.SOURCE_INFO"
     private val LETV_SOURCES = ComponentName("com.stv.signalsourcemanager", "com.stv.signalsourcemanager.MainActivity")
     private val FOXCONN_SOURCES = ComponentName("com.mstar.tvsetting", "com.foxconn.etvg.inputsource.FxcInputSourceActitvity")
 
@@ -766,6 +775,7 @@ object SystemProbe {
                     ?: tclPlayer?.takeIf { info.id.startsWith(TCL_INPUTS) }?.let { tclRoute(it, kind, label, hw(info.id)) }
                     ?: generic.takeIf { resolves(context, it) }
                     ?: droidLogicRoute(context, info)
+                    ?: jmgoRoute(context, info)
                     ?: tclPlayer?.let { tclRoute(it, kind, label, hw(info.id)) }
                     ?: generic
                 val device = cec
@@ -833,6 +843,27 @@ object SystemProbe {
                 (activity.permission == null || ContextCompat.checkSelfPermission(context, activity.permission) == PackageManager.PERMISSION_GRANTED)
         }
     }
+
+    /**
+     * JMGO's TV app, for its projectors where nothing answers the passthrough VIEW intent: it tunes
+     * the port named in the "inputSrc" extra (HDMI2, HDMI3), which DroidLogic's service is named
+     * after. JMGO S60 (Amlogic T968, Android 5.1.1): HDMI3 opened, the reporter's patched build and
+     * `am start` (issue #1347).
+     */
+    private fun jmgoRoute(context: Context, info: TvInputInfo): Intent? {
+        if (info.type != TvInputInfo.TYPE_HDMI) return null
+        val port = JMGO_PORT.find(info.id)?.groupValues?.get(1) ?: return null
+        val intent = Intent().setComponent(ComponentName(JMGO_TV, "$JMGO_TV.AmlogicTvActivity"))
+            .putExtra("inputSrc", "HDMI$port")
+        val activity = runCatching { context.packageManager.getActivityInfo(intent.component!!, 0) }.getOrNull() ?: return null
+        return intent.takeIf {
+            activity.exported && activity.enabled && activity.applicationInfo.enabled &&
+                (activity.permission == null || ContextCompat.checkSelfPermission(context, activity.permission) == PackageManager.PERMISSION_GRANTED)
+        }
+    }
+
+    private const val JMGO_TV = "com.jmgo.tv"
+    private val JMGO_PORT = Regex("""\.Hdmi(\d)InputService/""")
 
     private fun resolves(context: Context, intent: Intent) =
         runCatching { context.packageManager.resolveActivity(intent, 0) != null }.getOrDefault(false)
