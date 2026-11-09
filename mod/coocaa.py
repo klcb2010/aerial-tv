@@ -25,7 +25,7 @@ edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
      '    var peekNextRow by mutableStateOf(true); private set\n\n    /** Opt-in compatibility mode for Skyworth / Coocaa firmwares. */\n    var coocaaMode by mutableStateOf(false); private set',
      "Coocaa mode state"),
     ('        peekNextRow = prefs.getBoolean("peek_next_row", true)',
-     '        peekNextRow = prefs.getBoolean("peek_next_row", true)\n        coocaaMode = prefs.getBoolean("coocaa_mode", false)',
+     '        peekNextRow = prefs.getBoolean("peek_next_row", true)\n        coocaaMode = prefs.getBoolean("coocaa_mode", false)\n        if (coocaaMode) GuardSetup.startCoocaaMode(app)',
      "Coocaa mode preference load"),
     ('    fun choosePeekNextRow(on: Boolean) {\n        peekNextRow = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("peek_next_row", on) }\n    }',
      '    fun chooseCoocaaMode(on: Boolean) {\n        coocaaMode = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("coocaa_mode", on) }\n        if (on) {\n            GuardSetup.startCoocaaMode(app)\n        } else {\n            GuardSetup.stopCoocaaMode()\n        }\n    }\n\n    fun choosePeekNextRow(on: Boolean) {\n        peekNextRow = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("peek_next_row", on) }\n    }',
