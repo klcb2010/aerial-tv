@@ -383,7 +383,6 @@ edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
     ('        val list = order.toMutableList()\n        val from = list.indexOf(key)\n        val to = list.indexOf(target)',
      '        val list = order.toMutableList()\n        list.remove(FIRST_ROW_GAP_PREFIX + key)\n        val from = list.indexOf(key)\n        val to = list.indexOf(target)',
      "manual move clears old first-row gap"),
-    ('    private fun save() = prefs.edit {',
 ])
 
 print("[mod] all patches applied")
