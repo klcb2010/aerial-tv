@@ -60,6 +60,12 @@ edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
      "arrangement home loop"),
 ])
 
+edit("app/src/main/java/app/orchard/tv/apps/LayoutStore.kt", [
+    ('    fun folders(): List<Folder> = order.mapNotNull(::folderOf)',
+     '    /** Moves a first-row tile to the start of row two while preserving its old slot. */\n    fun moveOutOfFirstRow(key: String, target: String) {\n        if (key == target) return\n        val list = order.toMutableList()\n        val from = list.indexOf(key)\n        if (from < 0 || list.indexOf(target) < 0) return\n        list.removeAt(from)\n        list.add(from.coerceAtMost(list.size), FIRST_ROW_GAP_PREFIX + key)\n        val targetIndex = list.indexOf(target)\n        if (targetIndex < 0) return\n        list.add(targetIndex, key)\n        order = list\n        save()\n    }\n\n    fun folders(): List<Folder> = order.mapNotNull(::folderOf)',
+     "move first-row tile into second row"),
+])
+
 edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
     ('        val arrangement = store.arrange(named + pinned) { folder, inside ->',
      '        val arrangement = store.arrange(\n            named + pinned,\n            preserveHiddenSlots = if (AerialSettings.noFillFirstRow) AerialSettings.homeColumns else 0,\n        ) { folder, inside ->',
@@ -119,8 +125,8 @@ edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
 ])
 
 edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
-    ('            onMove = { vm.startMove(it) },',
-     '            onMove = { vm.startMove(it) },\n            canMoveOutOfFirstRow = menu?.let { m ->\n                vm.apps.indexOfFirst { it.key == m.key } in 0 until columns && vm.apps.size > columns\n            } == true,\n            onMoveOutOfFirstRow = { key ->\n                val index = vm.apps.indexOfFirst { it.key == key }\n                val neighbor = if (index % columns == columns - 1) index - 1 else index + 1\n                focusAfterOverlay = vm.apps.getOrNull(neighbor)?.key ?: vm.apps.getOrNull(index - 1)?.key\n                closeMenu()\n                vm.moveOutOfFirstRow(key)\n            },',
+    ('            onMove = { vm.startMove(it, menu?.inFolder) },',
+     '            onMove = { vm.startMove(it, menu?.inFolder) },\n            canMoveOutOfFirstRow = menu?.let { m ->\n                vm.apps.indexOfFirst { it.key == m.key } in 0 until columns && vm.apps.size > columns\n            } == true,\n            onMoveOutOfFirstRow = { key ->\n                val index = vm.apps.indexOfFirst { it.key == key }\n                val neighbor = if (index % columns == columns - 1) index - 1 else index + 1\n                focusAfterOverlay = vm.apps.getOrNull(neighbor)?.key ?: vm.apps.getOrNull(index - 1)?.key\n                closeMenu()\n                vm.moveOutOfFirstRow(key)\n            },',
      "one-tap second-row menu callbacks"),
 ])
 
