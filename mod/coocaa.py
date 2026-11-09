@@ -74,6 +74,12 @@ edit("app/src/main/java/app/orchard/tv/guard/HomeGuardService.kt", [
      "Coocaa delayed first boot takeover"),
 ])
 
+edit("app/src/main/java/app/orchard/tv/guard/HomeGuardService.kt", [
+    ('        if (skipReason == null) takeOverOnceSettled(how, woke = true)\n        else Log.i(TAG, "$how; not taking over Home ($skipReason)")',
+     '        if (skipReason == null) {\n            if (GuardSetup.coocaaModeEnabled(this)) {\n                handler.postDelayed({ takeOverOnceSettled("$how (Coocaa delay)", woke = true) }, 3_000L)\n            } else {\n                takeOverOnceSettled(how, woke = true)\n            }\n        } else Log.i(TAG, "$how; not taking over Home ($skipReason)")',
+     "Coocaa delayed takeover after user unlock"),
+])
+
 edit("app/src/main/res/values-zh/strings.xml", [
     ('    <string name="cc_setup_home">选择默认桌面</string>',
      '    <string name="cc_setup_home">设置为默认桌面</string>\n    <string name="cc_setup_coocaa_warning_title">酷开模式已开启</string>\n    <string name="cc_setup_coocaa_warning_message">酷开系统可能锁定系统默认桌面。当前模式通过 Aerial 桌面守护接管主页，此入口不会执行默认桌面注册。请确认已在系统无障碍设置中启用 Aerial 桌面守护。</string>\n    <string name="cc_setup_coocaa_warning_ok">知道了</string>',
