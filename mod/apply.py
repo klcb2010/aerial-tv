@@ -767,3 +767,8 @@ for resource_path in (
                 f"[mod] {resource_path}: expected one {resource_name}, found {len(matches)}"
             )
 print("[mod] update prompt resources verified")
+
+# Keep the optional Skyworth / Coocaa implementation isolated and easy to revert.
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import coocaa  # noqa: F401
