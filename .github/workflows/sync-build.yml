@@ -5,6 +5,12 @@ on:
   push:
     branches:
       - "**"
+    # 文档和工作流自身的调整不需要重新打 APK。
+    paths-ignore:
+      - "README"
+      - "README.*"
+      - "docs/**"
+      - ".github/workflows/**"
   # 定时任务只检查上游是否发布了新 Release，不跟踪上游普通代码提交。
   schedule:
     - cron: "17 */6 * * *"
