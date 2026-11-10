@@ -225,6 +225,17 @@ jobs:
           expected="$(keytool -list -v -keystore local/signing.keystore -alias "$SIGNING_KEY_ALIAS" -storepass "$SIGNING_STORE_PASSWORD" 2>/dev/null | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
           test -n "$expected" || { echo "Could not read signing certificate fingerprint."; exit 1; }
 
+          # Keep the fork's signing identity stable across releases. Changing this value
+          # requires an intentional migration plan for already-installed TV builds.
+          pinned="c84d01e082e34562864dc18a7c553ad2fe18e10b5706f1ba470b5926338132ee"
+          if [[ "$expected" != "$pinned" ]]; then
+            echo "Signing keystore changed; refusing to publish an incompatible update."
+            echo "Expected pinned certificate: $pinned"
+            echo "Actual keystore certificate: $expected"
+            exit 1
+          fi
+          echo "Pinned signing certificate: $expected"
+
           for apk in "app/build/outputs/apk/standard/release/app-standard-release.apk" "app/build/outputs/apk/guard/release/app-guard-release.apk"; do
             test -s "$apk" || { echo "APK not found: $apk"; exit 1; }
             actual="$("$APKSIGNER" verify --print-certs "$apk" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print tolower($2); exit}')"
