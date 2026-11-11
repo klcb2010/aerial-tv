@@ -12,7 +12,7 @@ def edit(path, replacements):
     file = ROOT / path
     text = file.read_text(encoding="utf-8")
     for old, new, label in replacements:
-        if new in text:
+        if new and new in text:
             continue
         count = text.count(old)
         if count != 1:
