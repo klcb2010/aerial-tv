@@ -792,6 +792,17 @@ edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
      "remove signer requirement from updater documentation"),
 ])
 
+# Tint the actual high-contrast focus ring. The ring is rasterized by ringFrame(),
+# separately from the empty-slot outline patched above.
+edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+    ('intArrayOf(Color.White.toArgb(), Color.White.copy(alpha = 0.78f).toArgb(), Color.White.copy(alpha = 0.94f).toArgb()),',
+     'intArrayOf(Color(0xFFADD8FF).toArgb(), Color(0xFFADD8FF).copy(alpha = 0.78f).toArgb(), Color(0xFFADD8FF).copy(alpha = 0.94f).toArgb()),',
+     "pale blue high-contrast focus ring gradient"),
+    ('line(dp, Color.White.copy(alpha = 0.35f))',
+     'line(dp, Color(0xFFADD8FF).copy(alpha = 0.55f))',
+     "pale blue inner focus ring"),
+])
+
 # Keep the optional Skyworth / Coocaa implementation isolated and easy to revert.
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
