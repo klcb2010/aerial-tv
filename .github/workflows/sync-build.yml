@@ -95,6 +95,9 @@ jobs:
           elif [[ "${{ steps.upstream_release.outputs.new_release }}" == "true" ]]; then
             should_build=true
             echo "New upstream Release detected; build the synchronized release."
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$GITHUB_REF" == "refs/heads/main" ]]; then
+            should_build=true
+            echo "Manual build requested on main; build the current fork commit."
           else
             echo "No qualifying fork commit or new upstream Release; skip build and publish."
           fi
