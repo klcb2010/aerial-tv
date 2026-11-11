@@ -244,7 +244,7 @@ edit("app/src/main/res/values/strings.xml", [
 
 edit("app/src/main/res/values-zh/strings.xml", [
     ('    <string name="menu_move_out_first_row">移出第一行</string>',
-     '    <string name="menu_move_out_first_row">移出第一行</string>\n    <string name="menu_move_to_first_row">移动到第一行</string>',
+     '    <string name="menu_move_out_first_row">移出第一行</string>\n    <string name="menu_move_to_first_row">移到第一行</string>',
      "Chinese move-to-first-row label"),
 ])
 
