@@ -425,7 +425,11 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
                             Updates.ManualCheckStatus.Failed -> R.string.st_check_updates_failed
                         }
                         ActionChip(stringResource(checkLabel), Glyph.ChevronRight) {
-                            Updates.checkIfStale(force = true, manual = true)
+                            if (Updates.manualCheckStatus == Updates.ManualCheckStatus.UpdateAvailable) {
+                                Updates.install(context)
+                            } else {
+                                Updates.checkIfStale(force = true, manual = true)
+                            }
                         }""",
      "manual update check result label"),
 ])
