@@ -803,6 +803,25 @@ edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
      "pale blue inner focus ring"),
 ])
 
+# Make the available-update state explicit: installation starts immediately on click.
+edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
+    ('Updates.ManualCheckStatus.UpdateAvailable -> R.string.st_check_updates_available',
+     'Updates.ManualCheckStatus.UpdateAvailable -> R.string.st_check_updates_installing',
+     "manual update available label"),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    ('<string name="st_check_updates_available">发现新版本</string>',
+     '<string name="st_check_updates_available">发现新版本</string>\n    <string name="st_check_updates_installing">即将自动安装最新版</string>',
+     "Chinese installing latest update label"),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    ('<string name="st_check_updates_available">Update available</string>',
+     '<string name="st_check_updates_available">Update available</string>\n    <string name="st_check_updates_installing">The latest version will install automatically</string>',
+     "English installing latest update label"),
+])
+
 # Keep the optional Skyworth / Coocaa implementation isolated and easy to revert.
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
