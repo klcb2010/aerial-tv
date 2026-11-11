@@ -772,11 +772,20 @@ for resource_path in (
 print("[mod] update prompt resources verified")
 
 
-# Do not pre-reject an update because its signing certificate differs.
-# Hand the APK to Android's installer, which remains the final authority and
-# enforces Android's package-signature rules.
+# Remove the app-level signing-certificate precheck completely. The Android
+# package installer remains responsible for deciding whether an update can replace
+# the installed package.
 edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
-    ('                !sameSigner(app, ready) -> Failure.NotOfficial\n', '', "remove app-level signer precheck"),
+    ('                !sameSigner(app, ready) -> Failure.NotOfficial\n', '', "remove signer comparison call"),
+    ('        val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES\n        val info = runCatching { context.packageManager.getPackageArchiveInfo(file.path, flags) }.getOrNull() ?: return null',
+     '        val info = runCatching { context.packageManager.getPackageArchiveInfo(file.path, 0) }.getOrNull() ?: return null',
+     "remove signer metadata extraction"),
+    ('    /** Whether [apk] is signed like this copy. If the archive\'s signers cannot be read, the installer decides. */\n    @Suppress("DEPRECATION")\n    private fun sameSigner(context: Context, apk: PackageInfo): Boolean {\n        val pm = context.packageManager\n        fun signers(info: PackageInfo?): Set<String>? {\n            val sigs = if (Build.VERSION.SDK_INT >= 28) info?.signingInfo?.apkContentsSigners else info?.signatures\n            return sigs?.takeIf { it.isNotEmpty() }?.map { it.toCharsString() }?.toSet()\n        }\n        val theirs = signers(apk) ?: return true\n        val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES\n        val ours = signers(runCatching { pm.getPackageInfo(context.packageName, flags) }.getOrNull()) ?: return true\n        return theirs == ours\n    }\n\n',
+     '',
+     "remove sameSigner implementation"),
+    ('        val APK must be this package, signed\n        with this copy\'s key and no older, or the installer would only fail with a less clear message.',
+     '        The APK must be this package and no older, or the installer would only fail with a less clear message.',
+     "remove signer requirement from updater documentation"),
 ])
 
 # Keep the optional Skyworth / Coocaa implementation isolated and easy to revert.
