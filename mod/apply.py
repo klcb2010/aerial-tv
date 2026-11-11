@@ -783,8 +783,8 @@ edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
     ('    /** Whether [apk] is signed like this copy. If the archive\'s signers cannot be read, the installer decides. */\n    @Suppress("DEPRECATION")\n    private fun sameSigner(context: Context, apk: PackageInfo): Boolean {\n        val pm = context.packageManager\n        fun signers(info: PackageInfo?): Set<String>? {\n            val sigs = if (Build.VERSION.SDK_INT >= 28) info?.signingInfo?.apkContentsSigners else info?.signatures\n            return sigs?.takeIf { it.isNotEmpty() }?.map { it.toCharsString() }?.toSet()\n        }\n        val theirs = signers(apk) ?: return true\n        val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES\n        val ours = signers(runCatching { pm.getPackageInfo(context.packageName, flags) }.getOrNull()) ?: return true\n        return theirs == ours\n    }\n\n',
      '',
      "remove sameSigner implementation"),
-    ('        val APK must be this package, signed\n        with this copy\'s key and no older, or the installer would only fail with a less clear message.',
-     '        The APK must be this package and no older, or the installer would only fail with a less clear message.',
+    ('     * ACTION_VIEW on the APK makes the installer itself the one installing. The APK must be this package, signed\n     * with this copy\'s key and no older, or the installer would only fail with a less clear message.',
+     '     * ACTION_VIEW on the APK makes the installer itself the one installing. The APK must be this package and no older, or the installer would only fail with a less clear message.',
      "remove signer requirement from updater documentation"),
 ])
 
