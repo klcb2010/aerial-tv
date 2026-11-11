@@ -771,6 +771,14 @@ for resource_path in (
             )
 print("[mod] update prompt resources verified")
 
+
+# Do not pre-reject an update because its signing certificate differs.
+# Hand the APK to Android's installer, which remains the final authority and
+# enforces Android's package-signature rules.
+edit("app/src/main/java/app/orchard/tv/update/Updates.kt", [
+    ('                !sameSigner(app, ready) -> Failure.NotOfficial\n', '', "remove app-level signer precheck"),
+])
+
 # Keep the optional Skyworth / Coocaa implementation isolated and easy to revert.
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
