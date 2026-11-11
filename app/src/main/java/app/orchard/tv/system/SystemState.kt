@@ -199,6 +199,7 @@ object SystemProbe {
 
     fun settingsIntent(context: Context): Intent =
         ChanghongSettings.intent(context)
+            ?: fengOsSettingsIntent(context)
             ?: xgimiSettingsIntent(context, "Settings://com.xgimi.misckey.main/mainPage")
             ?: konkaSettingsIntent(context)
             ?: settingsActivityIntent(context)
@@ -227,6 +228,25 @@ object SystemProbe {
                 runCatching { context.packageManager.queryBroadcastReceivers(i, 0).any { it.activityInfo.exported } }.getOrDefault(false)
             }?.let(::Intent),
         )
+
+    /**
+     * FengOS (Formovie / Xiaomi projectors) keeps its own settings panel, the one its remote and
+     * launcher open for 设置, while android.settings.SETTINGS lands in the AOSP pages left in the
+     * firmware (Xiaomi Q3 Pro, device peppa, Android 9; issue #1438, the reporter's patch, tried on
+     * that projector). Known by the panel being there.
+     */
+    private val FENGOS_SETTINGS = ComponentName("cn.formovie.fengos.settings", "cn.formovie.fengos.settings.ui.activity.MainActivity")
+
+    private fun fengOsSettingsIntent(context: Context): Intent? =
+        resolvable(context, Intent(Intent.ACTION_MAIN).setComponent(FENGOS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+
+    /**
+     * FengOS's own network page is the floating panel its settings open with the Wi-Fi action; the
+     * AOSP NetworkActivity, which networkSettingsActivityIntents tries first, is a leftover there
+     * (Q3 Pro, issue #1438). Only where FengOS's settings panel is.
+     */
+    private fun fengOsNetworkIntent(context: Context): Intent? =
+        if (fengOsSettingsIntent(context) == null) null else resolvable(context, Intent(Settings.ACTION_WIFI_SETTINGS))
 
     private fun konkaSettingsIntent(context: Context): Intent? {
         val intent = Intent("com.konka.settings.action.SETTING_MAIN_VIEW").setComponent(KONKA_SETTINGS)
@@ -295,7 +315,7 @@ object SystemProbe {
      * MiTV-MFTP0 (Android 9) viewer saw "crash" (issue #369); MiTV-MFTR0 has the page too.
      */
     fun networkSettingsIntents(context: Context, ethernet: Boolean = false): List<Intent> =
-        listOfNotNull(ChanghongSettings.intent(context, ChanghongSettings.NETWORK), xgimiSettingsIntent(context, XGIMI_NETWORK_PAGE)) +
+        listOfNotNull(fengOsNetworkIntent(context), ChanghongSettings.intent(context, ChanghongSettings.NETWORK), xgimiSettingsIntent(context, XGIMI_NETWORK_PAGE)) +
             networkSettingsActivityIntents(context, ethernet)
 
     private fun networkSettingsActivityIntents(context: Context, ethernet: Boolean = false): List<Intent> {
@@ -604,16 +624,27 @@ object SystemProbe {
         ) return true
         // Skyworth 42X5 (8S40, Android 4.4.4, Aerial Lite's issue #1419): the framework turns the
         // remote's input key into a "com.android.sky.SendHotKey" broadcast that ccosservice's exported
-        // HotKeyReceiver answers with the input panel, reading the key from EXTRA_KEY_EVENT (the
-        // reporter's logcat). Its HomeService below is there but ignores the key, so this goes first;
-        // sent only to an exported receiver for it, and not yet tried from an app.
+        // HotKeyReceiver answers with the input panel. The key goes in an int extra "specialKey"
+        // (the reporter read it from the firmware's PhoneWindowManager; sent so with am broadcast,
+        // the panel came up; a KeyEvent in EXTRA_KEY_EVENT reached the receiver and was ignored).
+        // Its HomeService below is there but ignores the key, so this goes first; sent only to an
+        // exported receiver for it.
         val skyHotKey = Intent("com.android.sky.SendHotKey")
         runCatching { pm.queryBroadcastReceivers(skyHotKey, 0) }.getOrNull().orEmpty()
             .firstOrNull { it.activityInfo.exported && it.activityInfo.enabled }?.activityInfo?.let { r ->
                 val key = Intent(skyHotKey).setComponent(ComponentName(r.packageName, r.name))
-                    .putExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_TV_INPUT))
+                    .putExtra("specialKey", android.view.KeyEvent.KEYCODE_TV_INPUT)
                 if (runCatching { context.sendBroadcast(key) }.isSuccess) return true
             }
+        // Baofeng TV (Android 4.4, Aerial Lite's issue #1225): the remote's source key is the
+        // broadcast "baofengtv.action.SOURCE_SWITCH", which the system app BFTVSourceSwitch's
+        // exported TVEventReceiver answers with its source overlay (read from the APK the reporter
+        // sent). Only where that receiver is there and exported; not seen on a full-app Baofeng yet.
+        val baofeng = Intent("baofengtv.action.SOURCE_SWITCH")
+            .setComponent(ComponentName("com.baofengtv.sourceswitch", "com.baofengtv.sourceswitch.receiver.TVEventReceiver"))
+        if (runCatching { pm.queryBroadcastReceivers(baofeng, 0) }.getOrNull().orEmpty().any { it.activityInfo.exported } &&
+            runCatching { context.sendBroadcast(baofeng) }.isSuccess
+        ) return true
         // Older Coocaa with none of the above (Skyworth 8S61, MStar, Android 4.4.2, Aerial Lite's
         // issue #1272): the system answers the remote's input key by starting its launcher's
         // HomeService with the key, which shows the input page. The extra is read from the
