@@ -2,7 +2,25 @@
 
 写给接手 Aerial 的人或 AI。先读这份，再读 [ARCHITECTURE.md](ARCHITECTURE.md) 和 [devices/](devices/)。
 
+## 现状（2026-11-18）
+
+- **2026-11-18 全量巡检**（记录 `local/triage/2026-11-18-full.md`，回复 `replies-2026-11-18.py`）：340 issue / 67 PR，最后是用户发言的 32 个新条目逐个读过。main 上未发版的改动（都在 2.0 之后）：
+  - **#1612 TCL 55L2 信号源键双弹窗**（Amlogic p34a5，安卓 5.1.1）：固件的 `com.tcl.sourcemananger`（原文如此）自己弹信源窗又把键交给 Aerial。装着这个包时首页不接信号源键（`SystemProbe.tclSourceManagerPanel`，并进 `firmwareInputPanel`）。没真机。
+  - **#1339 暴风 AML_T962**（安卓 9）：没有信号源列表时 `openInputPicker` 打开 `com.bftv.fui.biu/.views.activity.FRowActivity`；设置、网络打开 `com.baofengtv.settings/.MainActivity`（都只在导出时）。Lite 同步。没真机。
+  - **#1597 #1614 腾讯极光盒子 7**（BA102，安卓 14）：设置优先 `com.skyworthdigital.settings/.activity.MainActivity`，有线网络 `EthernetSettingActivity`。主页键闪固件桌面是 `block home apk`，固件限制。没真机。
+  - **#1609 「系统内置」屏保还回去**：`GuardSetup.screensaverModeChanged` 选「系统内置」时打开之前因「从不」关掉的 `screensaver_enabled`，组件是 Aerial 的就还给 `screensaver_default_component` 并记 `own_screensaver`（不再要求安装脚本设过）；回到别的类型且「从不」时再关。`MainActivity.restartIdleTimer` 不再需要常亮时清 `FLAG_KEEP_SCREEN_ON`（屏保显示时不清）。验证：安卓 9 模拟器 aerial28 按报告步骤走一遍（从不 → 0；系统内置 → 1、组件回 deskclock；航拍 → 组件回 Aerial、0）。常亮那条只按代码改，没在 TCL / 酷开 C10 那类机器上测。
+  - **#1622 「我的视频」底层图**：TCL 解析器 / `filmGlassless` 下 `Wallpapers.firstVideoFrame` 改用 `FilmKeyFrame`（经 `AerialStream.keyFrameOfFile`，和玻璃串行）读第一帧关键帧存海报，失败的片子这次运行里不再试；`FilmKeyFrame` 加 AV1（只用 AOSP 软件解码器）。验证：TCL MT5879 测试包 149，H.264 片 414 ms 读出、首页网格下面变成影片画面；AV1 片仍落回渐变（这台只有硬件 AV1 解码器）。
+  - **合 PR #1556 前 5 个提交**（zknb-666，Lite TCL MS901 信号源：固件口表、只回 Lite 切过的源、MS901 的 STORAGE 能力例外），补了一处 `Cursor.use`（API 14 lint）。第 6 个提交（常驻 `TclSourceWatch` 每 2 秒读前台 App + 开机广播）交户主决定。没有 MS901；Lite 在 aerial21 模拟器上启动、开控制中心不崩。
+  - README 两份补创维 65M9（#1613）。
+- 验证：`assembleStandardRelease assembleGuardRelease :lite:assembleRelease`、两套单测、`:lite:lintRelease` 通过，签名 e089…6685。小米 MFTR0 装了本地 standard release（versionCode 仍 148，install-multiple + 31.dm，speed-profile / install-dm）：selftest 主页键 0.3 s 回、信号源 8 个、按返回进航拍屏保再退出。TCL MT5879 多屏互动推了 **guard 测试包 versionCode 149（没提交）**，compile speed，两个 walleve 服务保留：主页键 0.4 s 回、信号源键弹 TCL 面板、按返回进屏保再退出、`Somnambulator` 系统屏保按键回 Aerial。**下次发版 versionCode ≥ 150。**
+- 测试时动过的户主数据：小米上在航拍屏保里按了一次右键，片子集合从 `9CCB8297,2B30E324,DE851E6D` 变成 `024891DE,9CCB8297,2B30E324`（右键会立刻换进一段新片，和每天自动换一段是同一个机制，没有接口改回）。以后在小米屏保里退出用返回 / 确定，不要按左右。TCL 上临时把壁纸换成两段自己上传的测试视频，已改回 aerial:live，两段视频（5441259…、879a56b…）已按 id 删除。
+- 不合 / 交户主：PR #1607（Vidda VL7R-PRO 文档，含停用聚好看、语音包和 Key Mapper，请作者删掉）、PR #1620 #1610（功能）、PR #1556 第 6 个提交。
+
 ## 现状（2026-11-17）
+
+- **2.0（versionCode 148），Lite 1.32（34），2026-11-17 发布**（[v2.0](https://github.com/pengchujin/aerial-tv/releases/tag/v2.0)）：屏保地点开关（#1583）和下面这轮巡检的全部修复，加上小米 keep_adb 修复。版本名用 2.0 而不是 1.100（1.100 看起来比 1.99 旧；`Updates.newer` 按数字逐段比，2.0 > 1.99）。官网已部署，三个包字节数和 Release 一致，version.txt = v2.0；给 #1580 #1588 #1599 #1584 #1569 #1583 贴了复测链接，PR #1587 发版后关闭。
+  - **keep_adb（户主的小米 MFTR0）**：这台的 `keep_adb` 早就变成 false（多半是 1.89–1.97 的 #1537 那个误判），所以每次唤醒固件关掉 ADB 后没人打开。另外这台待机时进程和守护绑定可能一直活着，唤醒时固件关 ADB 比 SCREEN_ON 先到，`screenOnAt` 还是上次亮屏，「亮屏多久」算成几小时，就会把它当成用户关的、结束 keep_adb。改成：守护记着屏幕已灭（`screenOff`）时，ADB 被关不算用户关的；`ensureAdb` 打开 ADB 时写 DiagLog（小米的 logcat 几分钟就被刷掉）。验证：装 2.0 后用 ConfigReceiver 重新打开户主这台的 keep_adb，`KEYCODE_SLEEP` 待机（这台待机时网络断开），户主遥控器开机：DiagLog `15:32:10 guard: ADB had been switched off; turned it back on (keep_adb)`，端口 5555 开着，keep_adb 仍是 true。注意这次唤醒走的是「待机被杀、复活」路径（`revival: ... guard unbound`），守护整段待机都绑着的那条路径这次没有走到。
+  - 两台回归：小米（install-multiple + 31.dm，speed-profile / install-dm）从小米设置按主页键 1 秒内回 Aerial，信号源列出 HDMI 1/2 等，按返回进屏保、按键退出；TCL（多屏互动推 148，确认焦点在「同意」，compile speed）主页键 2 秒内回、信号源键弹 TCL 面板。
 
 - **2026-11-17 全量巡检**（记录 `local/triage/2026-11-17-full.md`，回复 `replies-2026-11-17.py`）：332 issue / 67 PR，最后是用户发言的 35 个新条目逐个读过。main 上未发版的改动（都在 1.99 之后，和「屏保地点开关」一起发）：
   - **#1580 信号源键**（飞利浦 TV838，MStar，安卓 6）：没有安卓信号源列表时，首页按遥控器信号源键和控制中心「信号源」按钮一样先 `openInputPicker`（固件面板），打不开才显示「信号源」页；`firmwareInputPanel`（TCL、酷开）不变。Lite 本来不接这个键，没改。
