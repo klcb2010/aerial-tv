@@ -867,7 +867,7 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
 
 edit("app/src/main/res/values-zh/strings.xml", [
     ("    <string name=\"st_hidden_slots\">移出不补位</string>",
-     "    <string name=\"st_first_row_square_icons\">全局显示正形图标</string>\n    <string name=\"st_first_row_square_icons_hint\">开启后，首页所有图标均按正方形比例显示；关闭后恢复原来的长方形图标。</string>\n    <string name=\"st_hidden_slots\">移出不补位</string>",
+     "    <string name=\"st_first_row_square_icons\">全局显示正方形图标</string>\n    <string name=\"st_first_row_square_icons_hint\">开启后，首页所有图标均按正方形比例显示；关闭后恢复原来的长方形图标。</string>\n    <string name=\"st_hidden_slots\">移出不补位</string>",
      "first-row square icons"),
 ])
 
@@ -1026,3 +1026,19 @@ edit("app/src/main/res/values/strings.xml", [
 #      '                .requiredSize(maxOf(width + 36.dp, 150.dp), 24.dp)',
 #      "wider names on square tiles"),
 # ])
+
+
+# Square mode: enlarge each square tile by 30%, capped at 108dp.
+# Keep the original widescreen dimensions unchanged when the setting is off.
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+    (
+        "    private val wideTileW = restTileWidth(screenW, columns)\\n"
+        "    val tileW = if (squareTiles) wideTileW * 9f / 16f else wideTileW\\n"
+        "    val tileH = wideTileW * 9f / 16f",
+        "    private val wideTileW = restTileWidth(screenW, columns)\\n"
+        "    private val squareSide = minOf(wideTileW * 9f / 16f * 1.3f, 108.dp)\\n"
+        "    val tileW = if (squareTiles) squareSide else wideTileW\\n"
+        "    val tileH = if (squareTiles) squareSide else wideTileW * 9f / 16f",
+        "30 percent larger square tiles",
+    ),
+])
