@@ -886,3 +886,20 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
      "        val squareTiles = AerialSettings.firstRowSquareIcons\n        val metrics = remember(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRightNow, squareTiles) {\n            GridMetrics(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRightNow, squareTiles)\n        }",
      "global square tile metrics"),
 ])
+
+
+# Keep the real foreground logo proportional when the tile background is square.
+# The artwork plate may fill the square; the transparent foreground logo must not stretch.
+edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+    ('                            drawImage(\n                                fore,\n                                dstOffset = IntOffset((at.left * pw + px).roundToInt(), (at.top * ph + py).roundToInt()),\n                                dstSize = IntSize((at.width * pw).roundToInt(), (at.height * ph).roundToInt()),\n                                filterQuality = FilterQuality.Medium,\n                            )',
+     '                            if (AerialSettings.firstRowSquareIcons) {\n                                val targetW = (at.width * pw).roundToInt().coerceAtLeast(1)\n                                val targetH = (at.height * ph).roundToInt().coerceAtLeast(1)\n                                val fit = minOf(targetW.toFloat() / fore.width, targetH.toFloat() / fore.height)\n                                val logoW = (fore.width * fit).roundToInt().coerceAtLeast(1)\n                                val logoH = (fore.height * fit).roundToInt().coerceAtLeast(1)\n                                drawImage(\n                                    fore,\n                                    dstOffset = IntOffset(\n                                        (at.left * pw + (targetW - logoW) / 2f + px).roundToInt(),\n                                        (at.top * ph + (targetH - logoH) / 2f + py).roundToInt(),\n                                    ),\n                                    dstSize = IntSize(logoW, logoH),\n                                    filterQuality = FilterQuality.Medium,\n                                )\n                            } else {\n                                drawImage(\n                                    fore,\n                                    dstOffset = IntOffset((at.left * pw + px).roundToInt(), (at.top * ph + py).roundToInt()),\n                                    dstSize = IntSize((at.width * pw).roundToInt(), (at.height * ph).roundToInt()),\n                                    filterQuality = FilterQuality.Medium,\n                                )\n                            }',
+     "preserve foreground logo aspect ratio on square tiles"),
+])
+
+# Match the background-face cache dimensions to the actual square tile dimensions.
+# This avoids cache misses and main-thread face generation after enabling square tiles.
+edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+    ('        val tileW = restTileWidth((screenW / density).dp, AerialSettings.homeColumns).value * density\n        val tileH = tileW * 9f / 16f',
+     '        val wideTileW = restTileWidth((screenW / density).dp, AerialSettings.homeColumns).value * density\n        val tileW = if (AerialSettings.firstRowSquareIcons) wideTileW * 9f / 16f else wideTileW\n        val tileH = if (AerialSettings.firstRowSquareIcons) tileW else tileW * 9f / 16f',
+     "square tile face cache dimensions"),
+])
