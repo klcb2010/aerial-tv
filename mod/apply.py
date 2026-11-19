@@ -1036,7 +1036,7 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
         "    val tileW = if (squareTiles) wideTileW * 9f / 16f else wideTileW\n"
         "    val tileH = wideTileW * 9f / 16f",
         "    private val wideTileW = restTileWidth(screenW, columns)\n"
-        "    private val squareSide = minOf(wideTileW * 9f / 16f * 1.3f, 108.dp)\n"
+        "    private val squareSide = minOf(wideTileW * 9f / 16f * 1.2f, 108.dp)\n"
         "    val tileW = if (squareTiles) squareSide else wideTileW\n"
         "    val tileH = if (squareTiles) squareSide else wideTileW * 9f / 16f",
         "30 percent larger square tiles",
