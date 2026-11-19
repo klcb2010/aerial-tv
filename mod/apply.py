@@ -1207,3 +1207,12 @@ edit("app/src/main/res/values/strings.xml", [
         "square tile scale English choices",
     ),
 ])
+
+
+edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
+    (
+        'import java.security.MessageDigest\n',
+        'import java.security.MessageDigest\nimport kotlin.math.roundToInt\n',
+        "square tile scale rounding import",
+    ),
+])
