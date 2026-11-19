@@ -903,3 +903,114 @@ edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
      '        val wideTileW = restTileWidth((screenW / density).dp, AerialSettings.homeColumns).value * density\n        val tileW = if (AerialSettings.firstRowSquareIcons) wideTileW * 9f / 16f else wideTileW\n        val tileH = if (AerialSettings.firstRowSquareIcons) tileW else tileW * 9f / 16f',
      "square tile face cache dimensions"),
 ])
+# ============================================================================================
+# 追加到 mod/apply.py 末尾（不要删掉已有的方形 tile 相关 edit，方形画布下它们的结果与原值一致）
+#
+# 解决：v2.1.150 里“格子方了、美术还是 16:9”，49ef60b6 用 min(targetW/fore.w, targetH/fore.h)
+# 等比塞进去，方形格子的 targetW 只有原宽 56% → logo 被缩到约 28% 高，图标挤在方块中央；
+# 而 fore == null 的 banner 路径仍被 16:9 硬拉伸。
+# 做法：方形模式下美术画布也变方（W 由 352 收到 198 = 原 H，H 保持 198），
+#       所有以 H 为单位的 logo/glyph 尺寸不变 → 零拉伸、不再走 min() 缩小那条路。
+# 同时把方块里的 logo 从 0.5H 提到 0.58H（比 16:9 时代还大 16%），并把更新提示文案改掉。
+# ============================================================================================
+ 
+# 1) 方形格子时，美术画布做成正方形：H 沿用 16:9 的高度，W 收到同一个值。
+edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
+    (
+        '        val w = (dp * density).roundToInt().coerceIn(352, 888)\n'
+        '        if (w == W) return false\n'
+        '        W = w\n'
+        '        H = W * 9 / 16\n'
+        '        return true',
+        '        val wide = (dp * density).roundToInt().coerceIn(352, 888)\n'
+        '        val w = if (AerialSettings.firstRowSquareIcons) wide * 9 / 16 else wide\n'
+        '        if (w == W) return false\n'
+        '        W = w\n'
+        '        H = if (AerialSettings.firstRowSquareIcons) w else w * 9 / 16\n'
+        '        return true',
+        "square artwork canvas",
+    ),
+])
+ 
+# 2) banner（应用自带 TV 海报，fore 为 null 的那条路径）也按画布形状裁：方形时切成方图。
+#    这是 49ef60b6 没覆盖到的盲区，之前它仍被 16:9 硬拉进方格。
+edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
+    (
+        '        val w = src?.width?.coerceAtMost(2 * W) ?: W\n'
+        '        val h = w * 9 / 16',
+        '        val w = src?.width?.coerceAtMost(2 * W) ?: W\n'
+        '        val h = if (W == H) w else w * 9 / 16',
+        "square banner canvas",
+    ),
+])
+ 
+# 3) 开关切换时重新量美术（跟改列数一样走 reload），否则画布尺寸要重启才生效。
+edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
+    (
+        '        viewModelScope.launch {\n'
+        '            snapshotFlow { AerialSettings.homeColumns }.drop(1).collect {\n'
+        '                if (TileArtFactory.fitColumns()) reload() else if (loaded) prepareFaces()\n'
+        '            }\n'
+        '        }',
+        '        viewModelScope.launch {\n'
+        '            snapshotFlow { AerialSettings.homeColumns }.drop(1).collect {\n'
+        '                if (TileArtFactory.fitColumns()) reload() else if (loaded) prepareFaces()\n'
+        '            }\n'
+        '        }\n'
+        '        viewModelScope.launch {\n'
+        '            snapshotFlow { AerialSettings.firstRowSquareIcons }.drop(1).collect {\n'
+        '                if (TileArtFactory.fitColumns()) reload() else if (loaded) prepareFaces()\n'
+        '            }\n'
+        '        }',
+        "square tiles reload artwork",
+    ),
+])
+ 
+# 4) 方块里更饱满：图标占比 0.5 → 0.58，白色字形 0.58 → 0.66，来源/设备字形 0.5 → 0.58。
+#    方形画布 198 宽：0.58H ≈ 115px → 落到 83dp 的方格里约 48dp，占格子 58%（16:9 时代只有 41dp / 50%）。
+#    想更满就把 LOGO 调到 0.62~0.66；白字形 0.66H ≈ 131px，居中左右仍各留 33px，不会出界。
+edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
+    ('    private const val LOGO = 0.5f', '    private const val LOGO = 0.58f', "fuller logo on tiles"),
+    ('            val g = H * 0.5f', '            val g = H * 0.58f', "fuller device mark"),
+    ('            val g = H * (if (two) 0.36f else 0.42f)', '            val g = H * (if (two) 0.42f else 0.48f)', "fuller source mark"),
+    ('        val g = H * 0.58f', '        val g = H * 0.66f', "fuller system glyph"),
+])
+ 
+# 5) 更新提示文案：即将自动安装最新版 → 最新版安装过程中会卡一会儿（英文同步）。
+#    也可以直接改 apply.py 第 815 / 821 行的字符串，效果相同。
+edit("app/src/main/res/values-zh/strings.xml", [
+    (
+        '<string name="st_check_updates_installing">即将自动安装最新版</string>',
+        '<string name="st_check_updates_installing">最新版安装过程中会卡一会儿</string>',
+        "Chinese installing label wording",
+    ),
+])
+ 
+edit("app/src/main/res/values/strings.xml", [
+    (
+        '<string name="st_check_updates_installing">The latest version will install automatically</string>',
+        '<string name="st_check_updates_installing">Installing the latest version can take a while</string>',
+        "English installing label wording",
+    ),
+])
+ 
+ 
+# ============================================================================================
+# 以下是可选项，默认不启用（要用就把对应那两行开头的 # 去掉）
+# ============================================================================================
+ 
+# a) 间距上限：现在 gap = 剩余宽度全摊给间隙，4 列时会到 143dp，图标之间空得厉害。
+#    加个上限：间隙最多 1.2 × 格子宽。
+# edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+#     ('        (screenW - GridMargin * 2 - tileW * columns) / (columns - 1)\n    } else {',
+#      '        (screenW - GridMargin * 2 - tileW * columns) / (columns - 1)).coerceAtMost(tileW * 1.2f)\n    } else {',
+#      "cap square tile gap"),
+# ])
+ 
+# b) 名字宽度：方形格子下 requiredSize(width + 36.dp) 只剩约 119dp，长名字被省略号切。
+#    保底 150dp。
+# edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+#     ('                .requiredSize(width + 36.dp, 24.dp)',
+#      '                .requiredSize(maxOf(width + 36.dp, 150.dp), 24.dp)',
+#      "wider names on square tiles"),
+# ])
