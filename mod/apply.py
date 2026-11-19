@@ -974,10 +974,10 @@ edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
     ('            val g = H * 0.5f', '            val g = H * 0.58f', "fuller device mark"),
     ('            val g = H * (if (two) 0.36f else 0.42f)', '            val g = H * (if (two) 0.42f else 0.48f)', "fuller source mark"),
     (
-        '    fun glyphTile(top: Int, bottom: Int, glyph: Glyph): TileArt {\\n'
-        '        val back = colorTile(top, bottom)\\n'
-        '        // The glyph on its own layer, so it shifts against the color when the tile leans. The\\n'
-        '        // symbols keep a margin inside their box, so the box is larger than the glyph looks.\\n'
+        '    fun glyphTile(top: Int, bottom: Int, glyph: Glyph): TileArt {\n'
+        '        val back = colorTile(top, bottom)\n'
+        '        // The glyph on its own layer, so it shifts against the color when the tile leans. The\n'
+        '        // symbols keep a margin inside their box, so the box is larger than the glyph looks.\n'
         '        val g = H * 0.58f',
         '    fun glyphTile(top: Int, bottom: Int, glyph: Glyph): TileArt {\\n'
         '        val back = colorTile(top, bottom)\\n'
