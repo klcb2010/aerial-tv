@@ -1231,3 +1231,19 @@ edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
         "TileArt canvas matches HomeScreen grid",
     ),
 ])
+
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    (
+        '提供 10%、15%、20% 和 25% 四档。',
+        '提供 10、15、20 和 25 四档。',
+        "avoid percent format substitutions in Chinese",
+    ),
+])
+edit("app/src/main/res/values/strings.xml", [
+    (
+        'choose 10%, 15%, 20% or 25% enlargement.',
+        'choose 10, 15, 20 or 25 percent enlargement.',
+        "avoid percent format substitutions in English",
+    ),
+])
