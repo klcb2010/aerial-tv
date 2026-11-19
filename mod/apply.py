@@ -1216,3 +1216,18 @@ edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
         "square tile scale rounding import",
     ),
 ])
+
+
+# TileArt uses the same fixed 960dp canvas geometry as HomeScreen, not its old
+# oversized 222/176dp sampling widths; otherwise four-column art hits 132dp too early.
+edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
+    (
+        '        val dp = if (AerialSettings.homeColumns == 4) 222 else 176\n'
+        '        val wide = (dp * density).roundToInt().coerceIn(352, 888)',
+        '        val columns = AerialSettings.homeColumns\n'
+        '        val gap = when (columns) { 4 -> 34f; 6 -> 24f; else -> 28f }\n'
+        '        val dp = (960f - 112f - gap * (columns - 1)) / columns\n'
+        '        val wide = (dp * density).roundToInt().coerceIn(1, 888)',
+        "TileArt canvas matches HomeScreen grid",
+    ),
+])
