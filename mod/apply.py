@@ -831,7 +831,7 @@ import coocaa  # noqa: F401
 # Optional square artwork tiles on the first Home row; off by default.
 edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
     ("    var peekNextRow by mutableStateOf(true); private set",
-     "    var peekNextRow by mutableStateOf(true); private set\n\n    /** Draw the first row with square app tiles instead of the usual 16:9 tiles. */\n    var firstRowSquareIcons by mutableStateOf(false); private set",
+     "    var peekNextRow by mutableStateOf(true); private set\n\n    /** Draw all Home app tiles as squares instead of the usual 16:9 tiles. */\n    var firstRowSquareIcons by mutableStateOf(false); private set",
      "first-row square icons"),
 ])
 
@@ -855,7 +855,7 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
 
 edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
     ("                        val saverFade = { ((toSaver.value - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f) }\n                        AppTile(\n                            app = app,\n                            width = metrics.tileW,",
-     "                        val squareFirstRow = index < columns && AerialSettings.firstRowSquareIcons\n                        val tileWidth = if (squareFirstRow) metrics.tileH else metrics.tileW\n                        val tileOffsetX = if (squareFirstRow) with(density) { ((metrics.tileW - metrics.tileH) / 2).roundToPx() } else 0\n                        val saverFade = { ((toSaver.value - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f) }\n                        AppTile(\n                            app = app,\n                            width = tileWidth,",
+     "                        val squareIcons = AerialSettings.firstRowSquareIcons\n                        val tileWidth = if (squareIcons) metrics.tileH else metrics.tileW\n                        val tileOffsetX = if (squareIcons) with(density) { ((metrics.tileW - metrics.tileH) / 2).roundToPx() } else 0\n                        val saverFade = { ((toSaver.value - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f) }\n                        AppTile(\n                            app = app,\n                            width = tileWidth,",
      "first-row square icons"),
 ])
 
@@ -867,13 +867,13 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
 
 edit("app/src/main/res/values-zh/strings.xml", [
     ("    <string name=\"st_hidden_slots\">移出不补位</string>",
-     "    <string name=\"st_first_row_square_icons\">第一行图标正方形显示</string>\n    <string name=\"st_first_row_square_icons_hint\">开启后，首页第一行图标按正方形比例显示；关闭后恢复原来的宽屏图标。</string>\n    <string name=\"st_hidden_slots\">移出不补位</string>",
+     "    <string name=\"st_first_row_square_icons\">全局显示正形图标</string>\n    <string name=\"st_first_row_square_icons_hint\">开启后，首页所有图标均按正方形比例显示；关闭后恢复原来的长方形图标。</string>\n    <string name=\"st_hidden_slots\">移出不补位</string>",
      "first-row square icons"),
 ])
 
 edit("app/src/main/res/values/strings.xml", [
     ("    <string name=\"st_hidden_slots\">Do Not Fill First-Row Gaps</string>",
-     "    <string name=\"st_first_row_square_icons\">Square first-row icons</string>\n    <string name=\"st_first_row_square_icons_hint\">Show square app tiles in the first row instead of the usual widescreen tiles.</string>\n    <string name=\"st_hidden_slots\">Do Not Fill First-Row Gaps</string>",
+     "    <string name=\"st_first_row_square_icons\">Square icons globally</string>\n    <string name=\"st_first_row_square_icons_hint\">Show all Home app tiles as squares instead of the usual widescreen tiles.</string>\n    <string name=\"st_hidden_slots\">Do Not Fill First-Row Gaps</string>",
      "first-row square icons"),
 ])
 
