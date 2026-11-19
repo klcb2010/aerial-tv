@@ -973,7 +973,19 @@ edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
     ('    private const val LOGO = 0.5f', '    private const val LOGO = 0.58f', "fuller logo on tiles"),
     ('            val g = H * 0.5f', '            val g = H * 0.58f', "fuller device mark"),
     ('            val g = H * (if (two) 0.36f else 0.42f)', '            val g = H * (if (two) 0.42f else 0.48f)', "fuller source mark"),
-    ('        val g = H * 0.58f', '        val g = H * 0.66f', "fuller system glyph"),
+    (
+        '    fun glyphTile(top: Int, bottom: Int, glyph: Glyph): TileArt {\\n'
+        '        val back = colorTile(top, bottom)\\n'
+        '        // The glyph on its own layer, so it shifts against the color when the tile leans. The\\n'
+        '        // symbols keep a margin inside their box, so the box is larger than the glyph looks.\\n'
+        '        val g = H * 0.58f',
+        '    fun glyphTile(top: Int, bottom: Int, glyph: Glyph): TileArt {\\n'
+        '        val back = colorTile(top, bottom)\\n'
+        '        // The glyph on its own layer, so it shifts against the color when the tile leans. The\\n'
+        '        // symbols keep a margin inside their box, so the box is larger than the glyph looks.\\n'
+        '        val g = H * 0.66f',
+        "fuller system glyph",
+    ),
 ])
  
 # 5) 更新提示文案：即将自动安装最新版 → 最新版安装过程中会卡一会儿（英文同步）。
