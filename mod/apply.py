@@ -1042,3 +1042,68 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
         "30 percent larger square tiles",
     ),
 ])
+
+
+# Adjustable square-tile enlargement, available only while global square tiles are enabled.
+edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
+    (
+        "    var firstRowSquareIcons by mutableStateOf(false); private set",
+        "    var firstRowSquareIcons by mutableStateOf(false); private set\n    var squareIconScalePercent by mutableIntStateOf(20); private set",
+        "square icon scale setting",
+    ),
+    (
+        "        firstRowSquareIcons = prefs.getBoolean(\"first_row_square_icons\", false)",
+        "        firstRowSquareIcons = prefs.getBoolean(\"first_row_square_icons\", false)\n        squareIconScalePercent = prefs.getInt(\"square_icon_scale_percent\", 20).takeIf { it in SQUARE_ICON_SCALE_CHOICES } ?: 20",
+        "square icon scale setting",
+    ),
+    (
+        "    fun chooseFirstRowSquareIcons(on: Boolean) {\n        firstRowSquareIcons = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(\"first_row_square_icons\", on) }\n    }",
+        "    fun chooseFirstRowSquareIcons(on: Boolean) {\n        firstRowSquareIcons = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(\"first_row_square_icons\", on) }\n    }\n\n    val SQUARE_ICON_SCALE_CHOICES = listOf(15, 20, 25, 30)\n\n    fun chooseSquareIconScalePercent(percent: Int) {\n        if (percent !in SQUARE_ICON_SCALE_CHOICES) return\n        squareIconScalePercent = percent\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putInt(\"square_icon_scale_percent\", percent) }\n    }",
+        "square icon scale setting",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
+    (
+        "                        AerialSettings.firstRowSquareIcons, AerialSettings::chooseFirstRowSquareIcons,\n                    )",
+        "                        AerialSettings.firstRowSquareIcons, AerialSettings::chooseFirstRowSquareIcons,\n                    )\n                    if (AerialSettings.firstRowSquareIcons) Choices(\n                        R.string.st_square_icon_scale, stringResource(R.string.st_square_icon_scale_hint), note,\n                        AerialSettings.SQUARE_ICON_SCALE_CHOICES.map { it to (it.toString() + \"%\") },\n                        AerialSettings.squareIconScalePercent, AerialSettings::chooseSquareIconScalePercent,\n                    )",
+        "square icon scale setting",
+    ),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    (
+        "    <string name=\"st_first_row_square_icons_hint\">开启后，首页所有图标均按正方形比例显示；关闭后恢复原来的长方形图标。</string>",
+        "    <string name=\"st_first_row_square_icons_hint\">开启后，首页所有图标均按正方形比例显示；关闭后恢复原来的长方形图标。</string>\n    <string name=\"st_square_icon_scale\">正方形图标放大</string>\n    <string name=\"st_square_icon_scale_hint\">使用遥控器左右键调整正方形图标放大比例，提供 15%、20%、25% 和 30% 四档。</string>",
+        "square icon scale labels",
+    ),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    (
+        "    <string name=\"st_first_row_square_icons_hint\">Show all Home app tiles as squares instead of the usual widescreen tiles.</string>",
+        "    <string name=\"st_first_row_square_icons_hint\">Show all Home app tiles as squares instead of the usual widescreen tiles.</string>\n    <string name=\"st_square_icon_scale\">Square icon enlargement</string>\n    <string name=\"st_square_icon_scale_hint\">Use the left and right remote keys to choose 15%, 20%, 25% or 30% enlargement.</string>",
+        "square icon scale labels",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+    (
+        "        val squareTiles = AerialSettings.firstRowSquareIcons\n        val metrics = remember(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRightNow, squareTiles) {",
+        "        val squareTiles = AerialSettings.firstRowSquareIcons\n        val squareScalePercent = AerialSettings.squareIconScalePercent\n        val metrics = remember(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRightNow, squareTiles, squareScalePercent) {",
+        "square icon scale recomposition",
+    ),
+    (
+        "    private val squareSide = minOf(wideTileW * 9f / 16f * 1.2f, 108.dp)",
+        "    private val squareSide = wideTileW * 9f / 16f * (AerialSettings.squareIconScalePercent / 100f)",
+        "square icon scale geometry",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+    (
+        "        val tileW = if (AerialSettings.firstRowSquareIcons) wideTileW * 9f / 16f else wideTileW\n        val tileH = if (AerialSettings.firstRowSquareIcons) tileW else tileW * 9f / 16f",
+        "        val tileW = if (AerialSettings.firstRowSquareIcons) wideTileW * 9f / 16f * AerialSettings.squareIconScalePercent / 100f else wideTileW\n        val tileH = if (AerialSettings.firstRowSquareIcons) tileW else tileW * 9f / 16f",
+        "square icon scale face cache",
+    ),
+])
