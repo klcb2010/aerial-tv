@@ -1032,12 +1032,12 @@ edit("app/src/main/res/values/strings.xml", [
 # Keep the original widescreen dimensions unchanged when the setting is off.
 edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
     (
-        "    private val wideTileW = restTileWidth(screenW, columns)\\n"
-        "    val tileW = if (squareTiles) wideTileW * 9f / 16f else wideTileW\\n"
+        "    private val wideTileW = restTileWidth(screenW, columns)\n"
+        "    val tileW = if (squareTiles) wideTileW * 9f / 16f else wideTileW\n"
         "    val tileH = wideTileW * 9f / 16f",
-        "    private val wideTileW = restTileWidth(screenW, columns)\\n"
-        "    private val squareSide = minOf(wideTileW * 9f / 16f * 1.3f, 108.dp)\\n"
-        "    val tileW = if (squareTiles) squareSide else wideTileW\\n"
+        "    private val wideTileW = restTileWidth(screenW, columns)\n"
+        "    private val squareSide = minOf(wideTileW * 9f / 16f * 1.3f, 108.dp)\n"
+        "    val tileW = if (squareTiles) squareSide else wideTileW\n"
         "    val tileH = if (squareTiles) squareSide else wideTileW * 9f / 16f",
         "30 percent larger square tiles",
     ),
