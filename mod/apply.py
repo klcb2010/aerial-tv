@@ -1107,3 +1107,103 @@ edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
         "square icon scale face cache",
     ),
 ])
+
+
+# Square tile scale: use one bounded geometry in Home, cached faces and artwork.
+# 10/15/20/25% are stored as a Float multiplier (1.10f..1.25f).
+edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
+    (
+        '        squareIconScalePercent = prefs.getInt("square_icon_scale_percent", 20).takeIf { it in SQUARE_ICON_SCALE_CHOICES } ?: 20',
+        '        squareIconScalePercent = (prefs.getFloat("square_tile_scale", 1.2f).coerceIn(1.1f, 1.25f) * 100f).roundToInt()',
+        "square tile float preference load",
+    ),
+    (
+        '    val SQUARE_ICON_SCALE_CHOICES = listOf(15, 20, 25, 30)\n\n'
+        '    fun chooseSquareIconScalePercent(percent: Int) {\n'
+        '        if (percent !in SQUARE_ICON_SCALE_CHOICES) return\n'
+        '        squareIconScalePercent = percent\n'
+        '        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putInt("square_icon_scale_percent", percent) }\n'
+        '    }',
+        '    val SQUARE_ICON_SCALE_CHOICES = listOf(10, 15, 20, 25)\n\n'
+        '    fun chooseSquareIconScalePercent(percent: Int) {\n'
+        '        if (percent !in SQUARE_ICON_SCALE_CHOICES) return\n'
+        '        squareIconScalePercent = percent\n'
+        '        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putFloat("square_tile_scale", 1f + percent / 100f) }\n'
+        '    }',
+        "square tile float preference save and choices",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+    (
+        '    private val squareSide = wideTileW * 9f / 16f * (1f + AerialSettings.squareIconScalePercent / 100f)',
+        '    // At 130dp and above the large clock reaches its minimum top offset; keep the shared cap at 132dp.\n'
+        '    private val squareSide = minOf(wideTileW * 9f / 16f * (1f + AerialSettings.squareIconScalePercent / 100f), 132.dp)',
+        "square tile shared 132dp cap",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+    (
+        '        val tileW = if (AerialSettings.firstRowSquareIcons) wideTileW * 9f / 16f * (1f + AerialSettings.squareIconScalePercent / 100f) else wideTileW\n'
+        '        val tileH = if (AerialSettings.firstRowSquareIcons) tileW else tileW * 9f / 16f',
+        '        val squareSide = minOf(wideTileW * 9f / 16f * (1f + AerialSettings.squareIconScalePercent / 100f), 132f * density)\n'
+        '        val tileW = if (AerialSettings.firstRowSquareIcons) squareSide else wideTileW\n'
+        '        val tileH = if (AerialSettings.firstRowSquareIcons) tileW else tileW * 9f / 16f',
+        "square tile face cache shared 132dp cap",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
+    (
+        '        val wide = (dp * density).roundToInt().coerceIn(352, 888)\n'
+        '        val w = if (AerialSettings.firstRowSquareIcons) wide * 9 / 16 else wide\n'
+        '        if (w == W) return false\n'
+        '        W = w\n'
+        '        H = if (AerialSettings.firstRowSquareIcons) w else w * 9 / 16',
+        '        val wide = (dp * density).roundToInt().coerceIn(352, 888)\n'
+        '        val squareSide = minOf(wide * 9f / 16f * (1f + AerialSettings.squareIconScalePercent / 100f), 132f * density).roundToInt()\n'
+        '        val w = if (AerialSettings.firstRowSquareIcons) squareSide else wide\n'
+        '        if (w == W) return false\n'
+        '        W = w\n'
+        '        H = if (AerialSettings.firstRowSquareIcons) w else w * 9 / 16',
+        "square artwork canvas shared 132dp cap",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/HomeViewModel.kt", [
+    (
+        '        viewModelScope.launch {\n'
+        '            snapshotFlow { AerialSettings.firstRowSquareIcons }.drop(1).collect {\n'
+        '                if (TileArtFactory.fitColumns()) reload() else if (loaded) prepareFaces()\n'
+        '            }\n'
+        '        }',
+        '        viewModelScope.launch {\n'
+        '            snapshotFlow { AerialSettings.firstRowSquareIcons }.drop(1).collect {\n'
+        '                if (TileArtFactory.fitColumns()) reload() else if (loaded) prepareFaces()\n'
+        '            }\n'
+        '        }\n'
+        '        viewModelScope.launch {\n'
+        '            snapshotFlow { AerialSettings.squareIconScalePercent }.drop(1).collect {\n'
+        '                TileArtFactory.fitColumns()\n'
+        '                if (loaded) reload()\n'
+        '            }\n'
+        '        }',
+        "square tile scale always reload",
+    ),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    (
+        '提供 15%、20%、25% 和 30% 四档。',
+        '提供 10%、15%、20% 和 25% 四档。',
+        "square tile scale Chinese choices",
+    ),
+])
+edit("app/src/main/res/values/strings.xml", [
+    (
+        'choose 15%, 20%, 25% or 30% enlargement.',
+        'choose 10%, 15%, 20% or 25% enlargement.',
+        "square tile scale English choices",
+    ),
+])
