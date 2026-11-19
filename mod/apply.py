@@ -855,14 +855,14 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
 
 edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
     ("                        val saverFade = { ((toSaver.value - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f) }\n                        AppTile(\n                            app = app,\n                            width = metrics.tileW,",
-     "                        val squareIcons = AerialSettings.firstRowSquareIcons\n                        val tileWidth = if (squareIcons) metrics.tileH else metrics.tileW\n                        val tileOffsetX = if (squareIcons) with(density) { ((metrics.tileW - metrics.tileH) / 2).roundToPx() } else 0\n                        val saverFade = { ((toSaver.value - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f) }\n                        AppTile(\n                            app = app,\n                            width = tileWidth,",
+     "                        val saverFade = { ((toSaver.value - 0.05f * (index % columns)) / 0.6f).coerceIn(0f, 1f) }\n                        AppTile(\n                            app = app,\n                            width = metrics.tileW,",
      "first-row square icons"),
 ])
 
 edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
-    (".offset { slot.value - IntOffset(0, lift.roundToInt()) }",
-     ".offset { slot.value + IntOffset(tileOffsetX, -lift.roundToInt()) }",
-     "first-row square icons"),
+    (".offset { slot.value + IntOffset(tileOffsetX, -lift.roundToInt()) }",
+     ".offset { slot.value - IntOffset(0, lift.roundToInt()) }",
+     "remove square-tile offset"),
 ])
 
 edit("app/src/main/res/values-zh/strings.xml", [
@@ -877,3 +877,12 @@ edit("app/src/main/res/values/strings.xml", [
      "first-row square icons"),
 ])
 
+
+edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
+    ("private class GridMetrics(screenW: Dp, screenH: Dp, val columns: Int, oneRow: Boolean, plateNames: Boolean, peek: Boolean, plate: Boolean, largeClock: Boolean, clockRight: Boolean) {\n    val margin = GridMargin\n    val gap = gridGap(columns)\n    val tileW = restTileWidth(screenW, columns)\n    val tileH = tileW * 9f / 16f",
+     "private class GridMetrics(screenW: Dp, screenH: Dp, val columns: Int, oneRow: Boolean, plateNames: Boolean, peek: Boolean, plate: Boolean, largeClock: Boolean, clockRight: Boolean, squareTiles: Boolean) {\n    val gap = gridGap(columns)\n    private val wideTileW = restTileWidth(screenW, columns)\n    val tileW = if (squareTiles) wideTileW * 9f / 16f else wideTileW\n    val tileH = if (squareTiles) tileW else tileW * 9f / 16f\n    val margin = if (squareTiles) (screenW - (tileW * columns + gap * (columns - 1))) / 2 else GridMargin",
+     "global square tile grid geometry"),
+    ("        val metrics = remember(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRight) {\n            GridMetrics(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRight)\n        }",
+     "        val squareTiles = AerialSettings.firstRowSquareIcons\n        val metrics = remember(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRight, squareTiles) {\n            GridMetrics(maxWidth, maxHeight, columns, oneRow, plateNames, peek, hasPlate, largeClock, clockRight, squareTiles)\n        }",
+     "global square tile metrics"),
+])
