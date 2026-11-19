@@ -1095,7 +1095,7 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
     ),
     (
         "    private val squareSide = minOf(wideTileW * 9f / 16f * 1.2f, 108.dp)",
-        "    private val squareSide = wideTileW * 9f / 16f * (AerialSettings.squareIconScalePercent / 100f)",
+        "    private val squareSide = wideTileW * 9f / 16f * (1f + AerialSettings.squareIconScalePercent / 100f)",
         "square icon scale geometry",
     ),
 ])
@@ -1103,7 +1103,7 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
 edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
     (
         "        val tileW = if (AerialSettings.firstRowSquareIcons) wideTileW * 9f / 16f else wideTileW\n        val tileH = if (AerialSettings.firstRowSquareIcons) tileW else tileW * 9f / 16f",
-        "        val tileW = if (AerialSettings.firstRowSquareIcons) wideTileW * 9f / 16f * AerialSettings.squareIconScalePercent / 100f else wideTileW\n        val tileH = if (AerialSettings.firstRowSquareIcons) tileW else tileW * 9f / 16f",
+        "        val tileW = if (AerialSettings.firstRowSquareIcons) wideTileW * 9f / 16f * (1f + AerialSettings.squareIconScalePercent / 100f) else wideTileW\n        val tileH = if (AerialSettings.firstRowSquareIcons) tileW else tileW * 9f / 16f",
         "square icon scale face cache",
     ),
 ])
