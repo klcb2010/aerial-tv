@@ -1252,3 +1252,63 @@ edit("app/src/main/res/values/strings.xml", [
         "avoid percent format substitutions in English",
     ),
 ])
+
+
+# Optional: disable the temporary enlargement when an app receives remote focus.
+edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
+    (
+        "    var homePlate by mutableStateOf(true); private set",
+        "    var homePlate by mutableStateOf(true); private set\n\n    /** Do not enlarge an app tile when it receives remote focus. */\n    var disableFocusZoom by mutableStateOf(false); private set",
+        "disable focus zoom setting state",
+    ),
+    (
+        '        homePlate = prefs.getBoolean("home_plate", true)',
+        '        homePlate = prefs.getBoolean("home_plate", true)\n        disableFocusZoom = prefs.getBoolean("disable_focus_zoom", false)',
+        "disable focus zoom preference load",
+    ),
+    (
+        "    fun chooseFocusStyle(style: FocusStyle) {\n        chosenFocusStyle = style\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString(\"focus_style\", style.key) }\n    }",
+        "    fun chooseFocusStyle(style: FocusStyle) {\n        chosenFocusStyle = style\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString(\"focus_style\", style.key) }\n    }\n\n    fun chooseDisableFocusZoom(on: Boolean) {\n        disableFocusZoom = on\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(\"disable_focus_zoom\", on) }\n    }",
+        "disable focus zoom preference setter",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+    (
+        "            focused || moving -> FOCUSED_SCALE",
+        "            (focused || moving) && !AerialSettings.disableFocusZoom -> FOCUSED_SCALE",
+        "disable focused tile enlargement",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
+    (
+        "                    Choices(\n                        R.string.st_focus_style,",
+        "                    Choices(\n                        R.string.st_disable_focus_zoom, stringResource(R.string.st_disable_focus_zoom_hint), note,\n"
+        "                        listOf(false to R.string.st_off, true to R.string.st_on),\n"
+        "                        AerialSettings.disableFocusZoom, AerialSettings::chooseDisableFocusZoom,\n"
+        "                    )\n"
+        "                    Choices(\n                        R.string.st_focus_style,",
+        "disable focus zoom setting row",
+    ),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    (
+        '    <string name="st_focus_style">焦点样式</string>',
+        '    <string name="st_disable_focus_zoom">关闭对焦放大显示</string>\n'
+        '    <string name="st_disable_focus_zoom_hint">开启后，遥控器选中应用时不再临时放大图标。</string>\n'
+        '    <string name="st_focus_style">焦点样式</string>',
+        "Chinese disable focus zoom labels",
+    ),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    (
+        '    <string name="st_focus_style">Focus Style</string>',
+        '    <string name="st_disable_focus_zoom">Disable Focus Zoom</string>\n'
+        '    <string name="st_disable_focus_zoom_hint">Do not temporarily enlarge an app tile when it receives remote focus.</string>\n'
+        '    <string name="st_focus_style">Focus Style</string>',
+        "English disable focus zoom labels",
+    ),
+])
