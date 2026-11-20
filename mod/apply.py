@@ -1114,11 +1114,11 @@ edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
 edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
     (
         '        squareIconScalePercent = prefs.getInt("square_icon_scale_percent", 20).takeIf { it in SQUARE_ICON_SCALE_CHOICES } ?: 20',
-        '        val savedSquareScale = if (prefs.contains("square_tile_scale")) {\\n'
-        '            (prefs.getFloat("square_tile_scale", 1.15f).coerceIn(1.1f, 1.25f) * 100f).roundToInt() - 100\\n'
-        '        } else {\\n'
-        '            prefs.getInt("square_icon_scale_percent", 15)\\n'
-        '        }\\n'
+        '        val savedSquareScale = if (prefs.contains("square_tile_scale")) {\n'
+        '            (prefs.getFloat("square_tile_scale", 1.15f).coerceIn(1.1f, 1.25f) * 100f).roundToInt() - 100\n'
+        '        } else {\n'
+        '            prefs.getInt("square_icon_scale_percent", 15)\n'
+        '        }\n'
         '        squareIconScalePercent = savedSquareScale.takeIf { it in SQUARE_ICON_SCALE_CHOICES } ?: 15',
         "square tile float preference load",
     ),
