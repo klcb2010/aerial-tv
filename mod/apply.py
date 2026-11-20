@@ -1285,7 +1285,7 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
     (
         "                    Choices(\n                        R.string.st_focus_style,",
         "                    Choices(\n                        R.string.st_disable_focus_zoom, stringResource(R.string.st_disable_focus_zoom_hint), note,\n"
-        "                        listOf(false to R.string.st_off, true to R.string.st_on),\n"
+        "                        listOf(false to R.string.st_no, true to R.string.st_yes),\n"
         "                        AerialSettings.disableFocusZoom, AerialSettings::chooseDisableFocusZoom,\n"
         "                    )\n"
         "                    Choices(\n                        R.string.st_focus_style,",
@@ -1295,6 +1295,8 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
 
 edit("app/src/main/res/values-zh/strings.xml", [
     (
+        '    <string name="st_yes">是</string>\n'
+        '    <string name="st_no">否</string>\n'
         '    <string name="st_focus_style">焦点样式</string>',
         '    <string name="st_disable_focus_zoom">关闭对焦放大显示</string>\n'
         '    <string name="st_disable_focus_zoom_hint">开启后，遥控器选中应用时不再临时放大图标。</string>\n'
@@ -1305,6 +1307,8 @@ edit("app/src/main/res/values-zh/strings.xml", [
 
 edit("app/src/main/res/values/strings.xml", [
     (
+        '    <string name="st_yes">Yes</string>\n'
+        '    <string name="st_no">No</string>\n'
         '    <string name="st_focus_style">Focus Style</string>',
         '    <string name="st_disable_focus_zoom">Disable Focus Zoom</string>\n'
         '    <string name="st_disable_focus_zoom_hint">Do not temporarily enlarge an app tile when it receives remote focus.</string>\n'
