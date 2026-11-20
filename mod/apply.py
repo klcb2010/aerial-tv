@@ -1048,7 +1048,7 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
 edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
     (
         "    var firstRowSquareIcons by mutableStateOf(false); private set",
-        "    var firstRowSquareIcons by mutableStateOf(false); private set\n    var squareIconScalePercent by mutableIntStateOf(20); private set",
+        "    var firstRowSquareIcons by mutableStateOf(false); private set\n    var squareIconScalePercent by mutableIntStateOf(15); private set",
         "square icon scale setting",
     ),
     (
@@ -1114,7 +1114,12 @@ edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
 edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
     (
         '        squareIconScalePercent = prefs.getInt("square_icon_scale_percent", 20).takeIf { it in SQUARE_ICON_SCALE_CHOICES } ?: 20',
-        '        squareIconScalePercent = (prefs.getFloat("square_tile_scale", 1.2f).coerceIn(1.1f, 1.25f) * 100f).roundToInt()',
+        '        val savedSquareScale = if (prefs.contains("square_tile_scale")) {
+            (prefs.getFloat("square_tile_scale", 1.15f).coerceIn(1.1f, 1.25f) * 100f).roundToInt() - 100
+        } else {
+            prefs.getInt("square_icon_scale_percent", 15)
+        }
+        squareIconScalePercent = savedSquareScale.takeIf { it in SQUARE_ICON_SCALE_CHOICES } ?: 15',
         "square tile float preference load",
     ),
     (
