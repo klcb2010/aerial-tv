@@ -1298,7 +1298,7 @@ edit("app/src/main/res/values-zh/strings.xml", [
         '    <string name="st_yes">是</string>\n'
         '    <string name="st_no">否</string>\n'
         '    <string name="st_focus_style">焦点样式</string>',
-        '    <string name="st_disable_focus_zoom">关闭对焦放大显示</string>\n'
+        '    <string name="st_disable_focus_zoom">关闭APP图标对焦放大显示</string>\n'
         '    <string name="st_disable_focus_zoom_hint">开启后，遥控器选中应用时不再临时放大图标。</string>\n'
         '    <string name="st_focus_style">焦点样式</string>',
         "Chinese disable focus zoom labels",
