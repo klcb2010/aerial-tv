@@ -302,8 +302,8 @@ edit("app/src/main/java/app/orchard/tv/ui/home/HomeScreen.kt", [
 # Expose a manual update check in the Settings sheet; automatic checks remain unchanged.
 ensure_import(
     "app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt",
-    "import app.orchard.tv.settings.AerialSettings\\n",
-    "import app.orchard.tv.update.Updates\\n",
+    "import app.orchard.tv.settings.AerialSettings\n",
+    "import app.orchard.tv.update.Updates\n",
     "manual update check import",
 )
 edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
