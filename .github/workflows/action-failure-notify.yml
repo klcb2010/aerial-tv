@@ -2,6 +2,8 @@ name: Action Failure Notify
 
 on:
   workflow_run:
+    workflows:
+      - "Sync upstream and build Aerial"
     types: [completed]
 
 permissions:
