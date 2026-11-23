@@ -297,6 +297,44 @@ jobs:
           cp app/build/outputs/apk/standard/release/app-standard-release.apk aerial-standard.apk
           cp app/build/outputs/apk/guard/release/app-guard-release.apk aerial-guard.apk
 
+      - name: Prepare upstream Release notes
+        if: ${{ github.ref == 'refs/heads/main' && steps.build_gate.outputs.should_build == 'true' }}
+        shell: bash
+        env:
+          UPSTREAM_RELEASE_TAG: ${{ steps.upstream_release.outputs.tag }}
+          NEW_UPSTREAM_RELEASE: ${{ steps.upstream_release.outputs.new_release }}
+        run: |
+          set -euo pipefail
+
+          # Manual builds and fork-only commits keep a clear fallback description.
+          cat > upstream-release-notes.md <<'EOF'
+          klcb2010/aerial-tv 魔改版正式构建。
+
+          基于 pengchujin/aerial-tv，上游同步与本仓库 mod/ 定制补丁均已应用。
+          EOF
+
+          # For scheduled upstream releases, copy the complete original Markdown body.
+          if [[ "$NEW_UPSTREAM_RELEASE" == "true" ]]; then
+            response_file="$(mktemp)"
+            trap 'rm -f "$response_file"' EXIT
+
+            http_status="$(curl --silent --show-error --location \
+              --retry 3 --retry-delay 2 --retry-max-time 30 \
+              --output "$response_file" --write-out '%{http_code}' \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/pengchujin/aerial-tv/releases/tags/$UPSTREAM_RELEASE_TAG")"
+
+            if [[ "$http_status" != "200" ]]; then
+              echo "::error::Failed to fetch upstream Release notes (HTTP $http_status)."
+              jq -r '.message // .' "$response_file" 2>/dev/null || cat "$response_file"
+              exit 1
+            fi
+
+            jq -er '.body // ""' "$response_file" > upstream-release-notes.md
+            echo "Copied upstream Release notes for $UPSTREAM_RELEASE_TAG."
+          fi
+
       - name: Publish fork release
         if: ${{ github.ref == 'refs/heads/main' && steps.build_gate.outputs.should_build == 'true' }}
         uses: softprops/action-gh-release@v2
@@ -304,10 +342,7 @@ jobs:
           tag_name: v${{ steps.fork_version.outputs.name }}
           target_commitish: main
           name: Aerial ${{ steps.fork_version.outputs.name }} · klcb2010
-          body: |
-            klcb2010/aerial-tv 魔改版正式构建。
-
-            基于 pengchujin/aerial-tv，上游同步与本仓库 mod/ 定制补丁均已应用。
+          body_path: upstream-release-notes.md
           files: |
             aerial-standard.apk
             aerial-guard.apk
