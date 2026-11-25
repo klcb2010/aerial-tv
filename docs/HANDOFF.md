@@ -2,7 +2,21 @@
 
 写给接手 Aerial 的人或 AI。先读这份，再读 [ARCHITECTURE.md](ARCHITECTURE.md) 和 [devices/](devices/)。
 
+## 现状（2026-11-25）
+
+- **2026-11-25 全量巡检**（记录 `local/triage/2026-11-25-full.md`，回复 `replies-2026-11-25.py`，发出 `posted-2026-11-25.txt`，29 条）：322 issue / 74 PR，新的或有新回复的 24 个逐个读过（含 #1485 的两组对照和录屏说明）；关闭 10 个 issue（#1748 用户确认修好，#1753 用户自己查到是盒子休眠，#1581 用户不再需要，#1763 重复，6 个十天没回音）和 3 个 PR（合入）。复查（`raw-2026-11-25b`）没有新的。改动（每个一个提交，**main 上，未发版**，已推送）：
+  - **Amlogic 上影片只在 App 内取帧**（#1759 #1485 #1517，435bcc3 + c910cfe）：codec 列表里有 Amlogic 解码器时不用 PixelCopy、不用 MediaMetadataRetriever，底板走静止磨砂、首页停下取最近关键帧（进程内软解）；`film_in_app` 开关可强制。小米 MFTR0 强制打开验证：首页上下、控制中心、停下取帧 0.5 s 正常，测完改回 auto（MFTR0 自动为否，诊断 `in_app_only=false`）；TCL 读到 12 份 codec 列表、判定为否。**没有 Amlogic 真机，卡死是否解决没验证。** c910cfe 也让「文件读不了、又没有慢拷贝」的电视停下时用进程内关键帧，不再跳回旧图；TCL MT5879（copySlow）仍走安静后 PixelCopy。
+  - **密码面板圈住焦点**（#1766，f21095c）：面板 `focusGroup` + `onExit` 取消，方向键不再跑到面板后面的控件。安卓 9 模拟器 aerial28 上新建 PIN（没保存）验证：5↓8、左上下边按不出去；原来的现象（儿童模式锁屏后面的按钮）没在模拟器上复现，原因是按报告人的四个方向推出来的。
+  - **守护接住 / 放过主页键写进诊断**（#1618 #1602，2c78240）：`guard: Home key taken ...` / `left to the system ...`。只编译：两台电视上 `input keyevent` 注入的主页键不经过无障碍按键过滤，TCL 上 `sendevent` 没权限，硬件按键这条路没真机验证。
+  - **合 PR**（squash，保留作者）：#1762 TCL Google TV 信号源键让给 TCL 快捷面板（6602229，按 `com.tcl.suspension/.DismissService` 检测；两台电视都没这个包，作者 TCL G10 实测）；#1754 个性化行两端左右不跑到别的行（dfeba22，模拟器上「布局」行验证）；#1755 从信号源设置返回焦点回到「信号源设置」（8ba6b59，小米上返回键和顶部返回行都验证）。
+  - Lite：三处都没有对应代码（Lite 面板自己管行列焦点、没有影片取帧和守护），没改。
+  - 文档：ARCHITECTURE 加「Amlogic 上只在 App 内取帧」，`docs/devices/hisense-vidaa.md` 加 T963D4 一行，`tcl-ak30a5.md` 补一条。
+- 验证：standard 单测 291 个全过，两个包签名 e089…6685；测试包 versionCode 164（versionName 2.18-test，**未提交**，已改回 163）。小米 MFTR0（install-multiple + 31.dm，speed-profile / install-dm）主页键从设置 0.3 s 拉回、8 个信号源、屏保接力录屏逐帧无黑帧；TCL（`tcast-push.py`，截图确认焦点在「同意」后确定，compile speed）主页键从浏览器 0.1 s 拉回、7 个信号源、两个 walleve 服务不变，屏保退出录屏到切断前无黑帧（TCL 的 screenrecord 在退出时被显示模式变化切断）、退出后截图首页正常。两台现在装的是测试包 164，**下次发版 versionCode ≥ 165**，Lite 没改（仍 43）。
+- 等户主：PR #1760（控制中心「正在播放」，功能轮次；封面连网易云 CDN 要户主定）、PR #1749（第三方 IP 库）。
+
 ## 现状（2026-11-24）
+
+- **2.18（versionCode 163），Lite 1.41（43），2026-11-24 发布**（[v2.18](https://github.com/pengchujin/aerial-tv/releases/tag/v2.18)）：下面巡检的全部修复和 PR #1624。三个包签名 e089…6685，standard 单测 291 个、Lite lint 通过。两台装正式包回归：小米 MFTR0（install-multiple + 31.dm，speed-profile / install-dm）selftest 守护、主页键从设置 0.3 s、8 个信号源；TCL（`tcast-push.py`，uiautomator 确认焦点在「同意」后确定，compile speed）selftest 守护、主页键从浏览器 0.3 s、7 个信号源，两个 walleve 服务不变。官网已部署：两个域名 version.txt=v2.18，notes.json 第一条 2.18，三个 APK 字节数和 Release 一致（standard 3240654、guard 3240513、lite 1013095），`/diag/aerial-710.apk` 还在。#1658 #1748 #1750 和 PR #1624 贴了发布链接（`local/triage/release-2.18-posts.py`），issue 留着等确认。下次发版 versionCode ≥ 164，Lite ≥ 44。
 
 - **2026-11-24 全量巡检**（记录 `local/triage/2026-11-24-full.md`，回复 `replies-2026-11-24.py`，发出 `posted-2026-11-24.txt`，30 条）：328 issue / 71 PR，新的或有新回复的 27 个逐个读过（含 #1753 #1748 的照片、#1485 的录屏）；关闭 13 个 issue（#1701 #1725 用户确认修好，#1751 实测，#1723 用户自己定位到 4K + 完整档，9 个十天没回音）。复查（`raw-2026-11-24b`）没有新的。改动（每个一个提交，**main 上，未发版**，已推送）：
   - **大时钟锯齿**（#1658，5f7877e）：GLES 2 的 GPU 上大号时间先用 CPU 画成图（完整版 `softwareText`，Lite `ClockView.drawTime`），`soft_clock` 可强制。小米 MFTR0 强制打开对比位置 / 阴影一致、进出屏保录屏无跳动；没有 GLES 2 真机，锯齿没验证。
@@ -10,7 +24,7 @@
   - **Lite 每日一图不换**（#1750，b9ab51e）：日期变化 / 对时马上看、首页开着时 tick 里看、当天没出时半小时重试；完整版和 Lite 都把「时钟被调回」算到期。只编译 + lint，没有 4.x 真机。
   - **合 PR #1624**（微鲸 CEC 开机切源，6a7bc8c，squash，保留作者）：合时把监听代理对未知回调的返回值改成按返回类型。没有微鲸，作者 WTV55K1J 实测。
   - 文档：README 中英加长虹 65D6SMini（#1751），新笔记 `docs/devices/changhong-hisi660.md`（`device_provisioned=0` 与 `ChSystemService` 设 `persist.sys.default_launcher`）；ARCHITECTURE 加大时钟和文件夹滚动两条，LITE.md 每日一图的时机。
-- 验证：standard 单测 291 个、Lite lint 通过，三个包签名 e089…6685；测试包 versionCode 162（versionName 2.18-test，**未提交**，已改回 161）。小米 MFTR0（install-multiple + 31.dm，speed-profile / install-dm）selftest 守护、主页键从设置 0.4 s、8 个信号源；TCL（`tcast-push.py`，uiautomator 确认焦点在「同意」后确定，compile speed）selftest 守护、主页键从浏览器 0.3 s、7 个信号源，两个 walleve 服务不变，屏保进出录屏无黑帧（日志 screensaver starts / ends）。**两台现在装的是测试包 162，下次发版 versionCode ≥ 163**；Lite 改过，≥ 43。
+- 验证：standard 单测 291 个、Lite lint 通过，三个包签名 e089…6685；测试包 versionCode 162（versionName 2.18-test，**未提交**，已改回 161）。小米 MFTR0（install-multiple + 31.dm，speed-profile / install-dm）selftest 守护、主页键从设置 0.4 s、8 个信号源；TCL（`tcast-push.py`，uiautomator 确认焦点在「同意」后确定，compile speed）selftest 守护、主页键从浏览器 0.3 s、7 个信号源，两个 walleve 服务不变，屏保进出录屏无黑帧（日志 screensaver starts / ends）。两台当时装的是测试包 162，现在已装正式版 163。
 - 测试时改过、已改回：小米每排 App 数（5→6→5→4→5）、显示全部名字（开→关）、`soft_clock`（true → auto）。模拟器 aerial28 的开机 PIN 1234 清过一次又设回；它的 layout 被换成一个 16 App 的测试文件夹，还装了几个 `~/Downloads/aerial-apks` 的样本 App（只在模拟器上）。
 - #1747（5 列底板短一截）小米上 ADB 切列数、开关名字都没复现，等报告人截图。#1485（ASTR0 航拍下焦点不动）怀疑是取帧卡住 Amlogic 显示通路（`DequeueBuffer time out`），请做「流畅 + 高对比度」和录屏对照，**没改代码**。
 - 等户主：PR #1749（天气加 ipip.net / ip.zxinc.org 两个第三方服务器，按「不要做」没合）。
