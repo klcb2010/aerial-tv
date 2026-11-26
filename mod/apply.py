@@ -1405,3 +1405,59 @@ edit("app/src/main/res/values/strings.xml", [
         "English hide app names choice",
     ),
 ])
+
+
+# Keep the legacy Boolean setting API for ConfigReceiver and older ADB clients.
+edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
+    (
+        """    fun chooseAppNameMode(mode: Int) {
+        if (mode !in 0..2) return
+        chosenAppNameMode = mode
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putInt("app_name_mode", mode)
+            putBoolean("show_all_names", mode == 1)
+        }
+    }""",
+        """    fun chooseAppNameMode(mode: Int) {
+        if (mode !in 0..2) return
+        chosenAppNameMode = mode
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putInt("app_name_mode", mode)
+            putBoolean("show_all_names", mode == 1)
+        }
+    }
+
+    /** Backward-compatible Boolean API used by ConfigReceiver. */
+    fun chooseShowAllNames(on: Boolean) = chooseAppNameMode(if (on) 1 else 0)""",
+        "legacy app name setting API",
+    ),
+])
+
+# ActionChip's focusRequester parameter follows onClick, so trailing-lambda calls
+# need a three-argument overload rather than binding the lambda to FocusRequester.
+edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
+    (
+        """private fun ActionChip(label: String, glyph: Glyph, onClick: () -> Unit, focusRequester: FocusRequester? = null) {""",
+        """private fun ActionChip(label: String, glyph: Glyph, onClick: () -> Unit, focusRequester: FocusRequester?) {""",
+        "ActionChip explicit focus requester",
+    ),
+    (
+        """private fun ActionChip(label: String, glyph: Glyph, onClick: () -> Unit, focusRequester: FocusRequester?) {""",
+        """private fun ActionChip(label: String, glyph: Glyph, onClick: () -> Unit) {
+    ActionChip(label, glyph, onClick, null)
+}
+
+@Composable
+private fun ActionChip(label: String, glyph: Glyph, onClick: () -> Unit, focusRequester: FocusRequester?) {""",
+        "ActionChip trailing lambda overload",
+    ),
+])
+
+# Remove the trailing punctuation from the system-install waiting status.
+edit("app/src/main/res/values-zh/strings.xml", [
+    (
+        """    <string name="cc_update_waiting">正在等待系统安装…</string>""",
+        """    <string name="cc_update_waiting">正在等待系统安装</string>""",
+        "remove install waiting ellipsis",
+    ),
+])
