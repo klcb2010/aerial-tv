@@ -268,8 +268,8 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
     ('import androidx.compose.ui.focus.onFocusChanged\n',
      'import androidx.compose.ui.focus.onFocusChanged\n',
      "settings focus group import"),
-    ('            .padding(start = 18.dp, end = 10.dp)\n            .onFocusChanged {\n                // At once as well, so the row above's note does not show for a frame under this row.\n                if (it.hasFocus && !focused) note(hint)\n                focused = it.hasFocus\n            },',
-     '            .padding(start = 18.dp, end = 10.dp)\n            .onFocusChanged {\n                // At once as well, so the row above's note does not show for a frame under this row.\n                if (it.hasFocus && !focused) note(hint)\n                focused = it.hasFocus\n            },',
+    ('            .padding(start = 18.dp, end = 10.dp)\n            .onFocusChanged {',
+     '            .padding(start = 18.dp, end = 10.dp)\n            .onFocusChanged {',
      "settings row focus group"),
 ])
 
