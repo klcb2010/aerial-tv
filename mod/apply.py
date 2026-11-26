@@ -1333,3 +1333,55 @@ edit("app/src/main/res/values/strings.xml", [
         "English disable focus zoom labels",
     ),
 ])
+
+
+# App names on Home: selected only, all, or none.
+edit("app/src/main/java/app/orchard/tv/settings/AerialSettings.kt", [
+    (
+        '    private var chosenAllNames by mutableStateOf(false)\\n\\n    /** As chosen; always every name in Elders mode (Restricted). */\\n    val showAllNames: Boolean get() = chosenAllNames || (Restricted.active && Restricted.kind == RestrictedKind.Elders)',
+        '    private var chosenAppNameMode by mutableIntStateOf(0)\\n\\n    /** 0: selected app, 1: all apps, 2: no names. */\\n    val appNameMode: Int get() = if (Restricted.active && Restricted.kind == RestrictedKind.Elders) 1 else chosenAppNameMode\\n\\n    /** Elders mode always shows every app name. */\\n    val showAllNames: Boolean get() = appNameMode == 1\\n\\n    /** Hide every app name, except in Elders mode. */\\n    val hideAllNames: Boolean get() = appNameMode == 2',
+        "three-state app name setting",
+    ),
+    (
+        '        chosenAllNames = prefs.getBoolean("show_all_names", false)',
+        '        chosenAppNameMode = prefs.getInt("app_name_mode", if (prefs.getBoolean("show_all_names", false)) 1 else 0).coerceIn(0, 2)',
+        "app name mode preference migration",
+    ),
+    (
+        '    fun chooseShowAllNames(on: Boolean) {\\n        chosenAllNames = on\\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("show_all_names", on) }\\n    }',
+        '    fun chooseAppNameMode(mode: Int) {\\n        if (mode !in 0..2) return\\n        chosenAppNameMode = mode\\n        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {\\n            putInt("app_name_mode", mode)\\n            putBoolean("show_all_names", mode == 1)\\n        }\\n    }',
+        "app name mode preference setter",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/home/AppTile.kt", [
+    (
+        '        if (showName && DiagLayers.shows("names")) BasicText(',
+        '        if (showName && !AerialSettings.hideAllNames && DiagLayers.shows("names")) BasicText(',
+        "hide all app names",
+    ),
+])
+
+edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
+    (
+        '                        listOf(false to R.string.st_names_focused, true to R.string.st_names_all),\\n                        AerialSettings.showAllNames, AerialSettings::chooseShowAllNames,',
+        '                        listOf(0 to R.string.st_names_focused, 1 to R.string.st_names_all, 2 to R.string.st_names_none),\\n                        AerialSettings.appNameMode, AerialSettings::chooseAppNameMode,',
+        "three app name choices",
+    ),
+])
+
+edit("app/src/main/res/values-zh/strings.xml", [
+    (
+        '    <string name="st_names_all">全部显示</string>',
+        '    <string name="st_names_all">全部显示</string>\\n    <string name="st_names_none">全部不显示</string>',
+        "Chinese hide app names choice",
+    ),
+])
+
+edit("app/src/main/res/values/strings.xml", [
+    (
+        '    <string name="st_names_all">All Apps</string>',
+        '    <string name="st_names_all">All Apps</string>\\n    <string name="st_names_none">None</string>',
+        "English hide app names choice",
+    ),
+])
