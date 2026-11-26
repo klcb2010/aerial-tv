@@ -307,12 +307,31 @@ ensure_import(
     "manual update check import",
 )
 edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
-    ("""                        AerialSettings.effects, AerialSettings::chooseEffects,
+    ("""                    Choices(
+                        R.string.st_effects, null, note,
+                        listOf(Effects.Auto to R.string.st_effects_auto, Effects.Full to R.string.st_effects_full, Effects.Lite to R.string.st_effects_lite),
+                        AerialSettings.effects, AerialSettings::chooseEffects,
+                        hintOf = {
+                            stringResource(
+                                if (it == Effects.Auto && AerialSettings.lowEnd) R.string.st_effects_auto_lite_hint
+                                else R.string.st_effects_hint,
+                            )
+                        },
                     )
                 }
 
-                Spacer(Modifier.height(22.dp))""",
-     """                        AerialSettings.effects, AerialSettings::chooseEffects,
+                Spacer(Modifier.height(22.dp))
+                SectionTitle(R.string.wp_screensaver)""",
+     """                    Choices(
+                        R.string.st_effects, null, note,
+                        listOf(Effects.Auto to R.string.st_effects_auto, Effects.Full to R.string.st_effects_full, Effects.Lite to R.string.st_effects_lite),
+                        AerialSettings.effects, AerialSettings::chooseEffects,
+                        hintOf = {
+                            stringResource(
+                                if (it == Effects.Auto && AerialSettings.lowEnd) R.string.st_effects_auto_lite_hint
+                                else R.string.st_effects_hint,
+                            )
+                        },
                     )
                     SettingRow(R.string.st_check_updates, stringResource(R.string.st_check_updates_hint), note) {
                         ActionChip(stringResource(R.string.st_check_updates_action), Glyph.ChevronRight) {
@@ -321,8 +340,9 @@ edit("app/src/main/java/app/orchard/tv/ui/wallpaper/WallpaperSheet.kt", [
                     }
                 }
 
-                Spacer(Modifier.height(22.dp))""",
-     "manual update check setting"),
+                Spacer(Modifier.height(22.dp))
+                SectionTitle(R.string.wp_screensaver)""",
+      "manual update check setting"),
 ])
 
 edit("app/src/main/res/values/strings.xml", [
