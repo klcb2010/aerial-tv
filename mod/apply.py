@@ -1462,3 +1462,20 @@ edit("app/src/main/res/values-zh/strings.xml", [
     ),
 ])
 
+
+
+# Square tiles: preserve the complete TV banner instead of center-cropping its left and right edges.
+# Widescreen banners are fitted inside the square canvas; the existing graphite fill remains visible
+# above and below. Widescreen tiles retain the original cover behavior.
+edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
+    (
+        '            if (src != null) drawCover(banner, w, h, src.width, src.height) else drawCover(banner, w, h)',
+        '            if (W == H) drawContain(banner, w, h) else if (src != null) drawCover(banner, w, h, src.width, src.height) else drawCover(banner, w, h)',
+        "fit complete banner inside square tile",
+    ),
+    (
+        '        d.setBounds(l, t, l + dw, t + dh)\\n        d.draw(this)\\n    }\\n\\n    /** Saturation-weighted mean color: the hue a person would name when describing the tile. */',
+        '        d.setBounds(l, t, l + dw, t + dh)\\n        d.draw(this)\\n    }\\n\\n    /** Fit the complete banner inside the square tile without cropping its sides. */\\n    private fun Canvas.drawContain(\\n        d: Drawable, w: Int, h: Int,\\n        iw: Int = d.intrinsicWidth.takeIf { it > 0 } ?: w,\\n        ih: Int = d.intrinsicHeight.takeIf { it > 0 } ?: h,\\n    ) {\\n        val scale = kotlin.math.min(w / iw.toFloat(), h / ih.toFloat())\\n        val dw = (iw * scale).roundToInt()\\n        val dh = (ih * scale).roundToInt()\\n        val l = (w - dw) / 2\\n        val t = (h - dh) / 2\\n        d.setBounds(l, t, l + dw, t + dh)\\n        d.draw(this)\\n    }\\n\\n    /** Saturation-weighted mean color: the hue a person would name when describing the tile. */',
+        "add contain drawing helper",
+    ),
+])
