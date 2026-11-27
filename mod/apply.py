@@ -1467,8 +1467,8 @@ edit("app/src/main/res/values-zh/strings.xml", [
 # The ordinary widescreen mode keeps the original banner/custom-art selection order unchanged.
 edit("app/src/main/java/app/orchard/tv/apps/Apps.kt", [
     (
-        '            art = runCatching {\\n                when {\\n                    custom != null -> TileArtFactory.fromBanner',
-        '            art = runCatching {\\n                when {\\n                    app.orchard.tv.settings.AerialSettings.firstRowSquareIcons -> TileArtFactory.fromIcon(\\n                        densest(pm, info, info.iconResource) ?: info.loadIcon(pm), recipe,\\n                    )\\n                    custom != null -> TileArtFactory.fromBanner',
+        '            art = runCatching {\n                when {\n                    custom != null -> TileArtFactory.fromBanner',
+        '            art = runCatching {\n                when {\n                    app.orchard.tv.settings.AerialSettings.firstRowSquareIcons -> TileArtFactory.fromIcon(\n                        densest(pm, info, info.iconResource) ?: info.loadIcon(pm), recipe,\n                    )\n                    custom != null -> TileArtFactory.fromBanner',
         "use native app icon in square mode",
     ),
 ])
