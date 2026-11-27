@@ -1461,3 +1461,19 @@ edit("app/src/main/res/values-zh/strings.xml", [
         "remove install waiting ellipsis",
     ),
 ])
+
+
+# Do not enlarge logos inside square tiles: the legacy 1.25x boost can crop
+# edge details once the 16:9 Home tile is rendered as a square.
+edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
+    (
+        "            placeLogo(icon, ::visible, scale = 1.25f)?.let { (fore, at) ->",
+        "            placeLogo(icon, ::visible, scale = if (AerialSettings.firstRowSquareIcons) 1f else 1.25f)?.let { (fore, at) ->",
+        "preserve edge-logo bounds in square tile mode",
+    ),
+    (
+        "        val fore = placeLogo(icon, ::visible, round = square, scale = if (square) 1.25f else 1f)?.first",
+        "        val fore = placeLogo(icon, ::visible, round = square, scale = if (square && !AerialSettings.firstRowSquareIcons) 1.25f else 1f)?.first",
+        "preserve square icon bounds in square tile mode",
+    ),
+])
