@@ -1474,8 +1474,8 @@ edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
         "fit complete banner inside square tile",
     ),
     (
-        '        d.setBounds(l, t, l + dw, t + dh)\\n        d.draw(this)\\n    }\\n\\n    /** Saturation-weighted mean color: the hue a person would name when describing the tile. */',
-        '        d.setBounds(l, t, l + dw, t + dh)\\n        d.draw(this)\\n    }\\n\\n    /** Fit the complete banner inside the square tile without cropping its sides. */\\n    private fun Canvas.drawContain(\\n        d: Drawable, w: Int, h: Int,\\n        iw: Int = d.intrinsicWidth.takeIf { it > 0 } ?: w,\\n        ih: Int = d.intrinsicHeight.takeIf { it > 0 } ?: h,\\n    ) {\\n        val scale = kotlin.math.min(w / iw.toFloat(), h / ih.toFloat())\\n        val dw = (iw * scale).roundToInt()\\n        val dh = (ih * scale).roundToInt()\\n        val l = (w - dw) / 2\\n        val t = (h - dh) / 2\\n        d.setBounds(l, t, l + dw, t + dh)\\n        d.draw(this)\\n    }\\n\\n    /** Saturation-weighted mean color: the hue a person would name when describing the tile. */',
+        '        d.setBounds(l, t, l + dw, t + dh)\n        d.draw(this)\n    }\n\n    /** Saturation-weighted mean color: the hue a person would name when describing the tile. */',
+        '        d.setBounds(l, t, l + dw, t + dh)\n        d.draw(this)\n    }\n\n    /** Fit the complete banner inside the square tile without cropping its sides. */\n    private fun Canvas.drawContain(\n        d: Drawable, w: Int, h: Int,\n        iw: Int = d.intrinsicWidth.takeIf { it > 0 } ?: w,\n        ih: Int = d.intrinsicHeight.takeIf { it > 0 } ?: h,\n    ) {\n        val scale = kotlin.math.min(w / iw.toFloat(), h / ih.toFloat())\n        val dw = (iw * scale).roundToInt()\n        val dh = (ih * scale).roundToInt()\n        val l = (w - dw) / 2\n        val t = (h - dh) / 2\n        d.setBounds(l, t, l + dw, t + dh)\n        d.draw(this)\n    }\n\n    /** Saturation-weighted mean color: the hue a person would name when describing the tile. */',
         "add contain drawing helper",
     ),
 ])
