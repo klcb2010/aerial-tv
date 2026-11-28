@@ -1475,18 +1475,18 @@ edit("app/src/main/java/app/orchard/tv/apps/Apps.kt", [
 ])
 
 
-# Square tiles: a banner, or a picture chosen on the phone page, is fitted whole inside the square
-# instead of being stretched into it. 16:9 tiles keep the original cover behaviour.
-edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
+
+
+
+# Square mode: every app shows its own launcher icon. A picture chosen on the phone page or from the
+# icon library is 16:9 art: inside a square it would need empty bars, or a cropped copy of itself
+# behind it. Aerial's own system tiles and recipe glyphs still win, which keeps the Settings gear.
+edit("app/src/main/java/app/orchard/tv/apps/Apps.kt", [
     (
-        '            if (src != null) drawCover(banner, w, h, src.width, src.height) else drawCover(banner, w, h)',
-        '            if (W == H) drawContain(banner, w, h) else if (src != null) drawCover(banner, w, h, src.width, src.height) else drawCover(banner, w, h)',
-        "fit the whole banner inside a square tile",
-    ),
-    (
-        '    /** [iw]×[ih] is the size [d] is scaled from: its pixels for a bitmap, whatever density it was loaded at. */\n    private fun Canvas.drawCover(',
-        '    /** Fits [d] whole inside the tile, centred: nothing cropped, nothing stretched. */\n    private fun Canvas.drawContain(\n        d: Drawable, w: Int, h: Int,\n        iw: Int = d.intrinsicWidth.takeIf { it > 0 } ?: w,\n        ih: Int = d.intrinsicHeight.takeIf { it > 0 } ?: h,\n    ) {\n        val scale = kotlin.math.min(w / iw.toFloat(), h / ih.toFloat())\n        val dw = (iw * scale).roundToInt()\n        val dh = (ih * scale).roundToInt()\n        val l = (w - dw) / 2\n        val t = (h - dh) / 2\n        d.setBounds(l, t, l + dw, t + dh)\n        d.draw(this)\n    }\n\n    /** [iw]×[ih] is the size [d] is scaled from: its pixels for a bitmap, whatever density it was loaded at. */\n    private fun Canvas.drawCover(',
-        "add drawContain helper",
+        '            art = runCatching {\n                when {\n                    custom != null -> TileArtFactory.fromBanner(android.graphics.drawable.BitmapDrawable(android.content.res.Resources.getSystem(), custom))\n                    library != null -> TileArtFactory.fromBanner(android.graphics.drawable.BitmapDrawable(android.content.res.Resources.getSystem(), library))',
+        '            art = runCatching {\n                val squareIcon = {\n                    TileArtFactory.fromIcon(densest(pm, info, info.iconResource) ?: info.loadIcon(pm), recipe)\n                }\n                when {\n                    custom != null -> if (app.orchard.tv.settings.AerialSettings.firstRowSquareIcons) squareIcon() else TileArtFactory.fromBanner(android.graphics.drawable.BitmapDrawable(android.content.res.Resources.getSystem(), custom))\n                    library != null -> if (app.orchard.tv.settings.AerialSettings.firstRowSquareIcons) squareIcon() else TileArtFactory.fromBanner(android.graphics.drawable.BitmapDrawable(android.content.res.Resources.getSystem(), library))',
+        "square mode uses the launcher icon instead of 16:9 artwork",
     ),
 ])
+
 
