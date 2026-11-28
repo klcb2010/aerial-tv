@@ -1463,12 +1463,30 @@ edit("app/src/main/res/values-zh/strings.xml", [
 ])
 
 
-# Square mode uses the app's own square launcher icon, not its optional 16:9 TV banner.
-# The ordinary widescreen mode keeps the original banner/custom-art selection order unchanged.
+# Square mode: a 16:9 TV banner cannot fill a square tile without cropping its sides, so only
+# the banner branch falls back to the app's own square icon. The phone page's picture, the icon
+# library, Aerial's own system tiles and a recipe's glyph all still win, as on widescreen.
 edit("app/src/main/java/app/orchard/tv/apps/Apps.kt", [
     (
-        '            art = runCatching {\n                when {\n                    custom != null -> TileArtFactory.fromBanner',
-        '            art = runCatching {\n                when {\n                    app.orchard.tv.settings.AerialSettings.firstRowSquareIcons -> TileArtFactory.fromIcon(\n                        densest(pm, info, info.iconResource) ?: info.loadIcon(pm), recipe,\n                    )\n                    custom != null -> TileArtFactory.fromBanner',
-        "use native app icon in square mode",
+        '    private fun fromApp(pm: PackageManager, info: ActivityInfo, banner: android.graphics.drawable.Drawable?, recipe: TileRecipe?): TileArt = when {\n        recipe?.glyph != null -> TileArtFactory.glyphTile(recipe.top ?: 0, recipe.bottom ?: 0, recipe.glyph)\n        banner != null && recipe?.useIcon != true -> TileArtFactory.fromBanner(banner)',
+        '    private fun fromApp(pm: PackageManager, info: ActivityInfo, banner: android.graphics.drawable.Drawable?, recipe: TileRecipe?): TileArt = when {\n        recipe?.glyph != null -> TileArtFactory.glyphTile(recipe.top ?: 0, recipe.bottom ?: 0, recipe.glyph)\n        banner != null && recipe?.useIcon != true -> if (app.orchard.tv.settings.AerialSettings.firstRowSquareIcons) {\n            TileArtFactory.fromIcon(densest(pm, info, info.iconResource) ?: info.loadIcon(pm), recipe)\n        } else {\n            TileArtFactory.fromBanner(banner)\n        }',
+        "native icon only for the banner branch in square mode",
     ),
 ])
+
+
+# Square tiles: a banner, or a picture chosen on the phone page, is fitted whole inside the square
+# instead of being stretched into it. 16:9 tiles keep the original cover behaviour.
+edit("app/src/main/java/app/orchard/tv/apps/TileArt.kt", [
+    (
+        '            if (src != null) drawCover(banner, w, h, src.width, src.height) else drawCover(banner, w, h)',
+        '            if (W == H) drawContain(banner, w, h) else if (src != null) drawCover(banner, w, h, src.width, src.height) else drawCover(banner, w, h)',
+        "fit the whole banner inside a square tile",
+    ),
+    (
+        '    /** [iw]×[ih] is the size [d] is scaled from: its pixels for a bitmap, whatever density it was loaded at. */\n    private fun Canvas.drawCover(',
+        '    /** Fits [d] whole inside the tile, centred: nothing cropped, nothing stretched. */\n    private fun Canvas.drawContain(\n        d: Drawable, w: Int, h: Int,\n        iw: Int = d.intrinsicWidth.takeIf { it > 0 } ?: w,\n        ih: Int = d.intrinsicHeight.takeIf { it > 0 } ?: h,\n    ) {\n        val scale = kotlin.math.min(w / iw.toFloat(), h / ih.toFloat())\n        val dw = (iw * scale).roundToInt()\n        val dh = (ih * scale).roundToInt()\n        val l = (w - dw) / 2\n        val t = (h - dh) / 2\n        d.setBounds(l, t, l + dw, t + dh)\n        d.draw(this)\n    }\n\n    /** [iw]×[ih] is the size [d] is scaled from: its pixels for a bitmap, whatever density it was loaded at. */\n    private fun Canvas.drawCover(',
+        "add drawContain helper",
+    ),
+])
+
